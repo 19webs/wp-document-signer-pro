@@ -35,6 +35,7 @@ class WPDS_Admin_Settings {
 		add_action( 'admin_init', array( $this, 'handle_zip_download' ) );
 		add_action( 'admin_init', array( $this, 'handle_pdf_view' ) );
 		add_action( 'admin_init', array( $this, 'handle_file_delete' ) );
+		add_action( 'admin_init', array( $this, 'handle_bulk_actions' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		
 		// Filtro nativo de WordPress para inyectar actualizaciones automáticas desde GitHub
@@ -363,6 +364,7 @@ class WPDS_Admin_Settings {
 	/**
 	 * Transmite y muestra de forma segura el archivo PDF para administradores autorizados.
 	 * Bypassea la restricción del .htaccess del directorio de subidas.
+	 * Soporta modo ver inline y descargar directo (attachment) mediante parámetro.
 	 */
 	public function handle_pdf_view() {
 		if ( isset( $_GET['page'] ) && ( 'wpds-settings' === $_GET['page'] || 'wpds-signed-docs' === $_GET['page'] ) && isset( $_GET['view_pdf'] ) ) {
@@ -376,8 +378,11 @@ class WPDS_Admin_Settings {
 			$file_path  = $target_dir . '/' . basename( $file_name );
 
 			if ( file_exists( $file_path ) && 'pdf' === pathinfo( $file_path, PATHINFO_EXTENSION ) ) {
+				// Elegir disposición: attachment (descargar archivo) o inline (ver en navegador)
+				$disposition = ( isset( $_GET['download'] ) && '1' === $_GET['download'] ) ? 'attachment' : 'inline';
+				
 				header( 'Content-Type: application/pdf' );
-				header( 'Content-Disposition: inline; filename="' . basename( $file_path ) . '"' );
+				header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );
 				header( 'Content-Length: ' . filesize( $file_path ) );
 				readfile( $file_path );
 				exit;
@@ -413,6 +418,70 @@ class WPDS_Admin_Settings {
 				exit;
 			} else {
 				wp_die( esc_html__( 'El archivo no existe o no es un PDF válido.', 'wp-doc-signer' ) );
+			}
+		}
+	}
+
+	/**
+	 * Maneja las acciones en lote (descarga ZIP y eliminación múltiple).
+	 */
+	public function handle_bulk_actions() {
+		if ( isset( $_POST['wpds_bulk_action_nonce'] ) && wp_verify_nonce( $_POST['wpds_bulk_action_nonce'], 'wpds_bulk_action' ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+			}
+
+			$action = isset( $_POST['bulk_action'] ) ? sanitize_text_field( $_POST['bulk_action'] ) : '';
+			$files  = isset( $_POST['bulk_files'] ) ? array_map( 'sanitize_text_field', $_POST['bulk_files'] ) : array();
+
+			if ( empty( $action ) || '-1' === $action || empty( $files ) ) {
+				return; // Nada seleccionado o acción inválida
+			}
+
+			$upload_dir = wp_upload_dir();
+			$target_dir = $upload_dir['basedir'] . '/firmas-pdf';
+
+			if ( 'download_zip' === $action ) {
+				if ( ! class_exists( 'ZipArchive' ) ) {
+					wp_die( esc_html__( 'La extensión ZipArchive de PHP no está disponible en este servidor.', 'wp-doc-signer' ) );
+				}
+
+				$zip = new ZipArchive();
+				$zip_filename = 'documentos_seleccionados_' . date( 'Ymd_His' ) . '.zip';
+				$zip_filepath = get_temp_dir() . $zip_filename;
+
+				if ( $zip->open( $zip_filepath, ZipArchive::CREATE | ZipArchive::OVERWRITE ) === true ) {
+					foreach ( $files as $file ) {
+						$file_path = $target_dir . '/' . basename( $file );
+						if ( file_exists( $file_path ) && 'pdf' === pathinfo( $file_path, PATHINFO_EXTENSION ) ) {
+							$zip->addFile( $file_path, basename( $file_path ) );
+						}
+					}
+					$zip->close();
+
+					if ( file_exists( $zip_filepath ) ) {
+						header( 'Content-Type: application/zip' );
+						header( 'Content-Disposition: attachment; filename="' . $zip_filename . '"' );
+						header( 'Content-Length: ' . filesize( $zip_filepath ) );
+						readfile( $zip_filepath );
+						unlink( $zip_filepath );
+						exit;
+					}
+				}
+				wp_die( esc_html__( 'Error al generar el archivo ZIP.', 'wp-doc-signer' ) );
+			}
+
+			if ( 'delete' === $action ) {
+				$deleted_count = 0;
+				foreach ( $files as $file ) {
+					$file_path = $target_dir . '/' . basename( $file );
+					if ( file_exists( $file_path ) && 'pdf' === pathinfo( $file_path, PATHINFO_EXTENSION ) ) {
+						unlink( $file_path );
+						$deleted_count++;
+					}
+				}
+				wp_redirect( admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&bulk_deleted=' . $deleted_count ) );
+				exit;
 			}
 		}
 	}
@@ -554,8 +623,15 @@ class WPDS_Admin_Settings {
 			return;
 		}
 
+		// Alertas de eliminación individual
 		if ( isset( $_GET['deleted'] ) ) {
 			add_settings_error( 'wpds_messages', 'wpds_message', __( 'El archivo PDF seleccionado ha sido eliminado del servidor.', 'wp-doc-signer' ), 'updated' );
+		}
+
+		// Alertas de eliminación masiva en lote
+		if ( isset( $_GET['bulk_deleted'] ) ) {
+			$count = intval( $_GET['bulk_deleted'] );
+			add_settings_error( 'wpds_messages', 'wpds_message', sprintf( _n( 'Se ha eliminado %s archivo del servidor.', 'Se han eliminado %s archivos del servidor.', $count, 'wp-doc-signer' ), $count ), 'updated' );
 		}
 
 		settings_errors( 'wpds_messages' );
@@ -606,117 +682,169 @@ class WPDS_Admin_Settings {
 					<input type="hidden" name="page" value="wpds-signed-docs" />
 					<p class="search-box" style="position: relative; margin: 0;">
 						<label class="screen-reader-text" for="post-search-input"><?php esc_html_e( 'Buscar PDFs:', 'wp-doc-signer' ); ?></label>
-						<input type="search" id="post-search-input" name="s" value="<?php echo esc_attr( $search_query ); ?>" placeholder="<?php esc_attr_e( 'Buscar por nombre...', 'wp-doc-signer' ); ?>" />
+						<input type="search" id="post-search-input" name="s" value="<?php echo esc_attr( $search_query ); ?>" placeholder="<?php esc_attr_e( 'Buscar por nombre...', 'wp-doc-signer' ); ?>" style="height: 30px; margin-bottom: 0;" />
 						<input type="submit" id="search-submit" class="button" value="<?php esc_attr_e( 'Buscar', 'wp-doc-signer' ); ?>" />
 					</p>
 				</form>
 			<?php endif; ?>
 
-			<!-- Barra de navegación y acciones de tabla -->
-			<div class="tablenav top" style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0 10px 0; clear: left;">
-				<div class="alignleft actions bulkactions" style="margin: 0;">
-					<?php if ( $total_items > 0 ) : ?>
-						<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&download_zip=1' ) ); ?>" class="button button-primary">
-							<span class="dashicons dashicons-download" style="vertical-align: middle; margin-top: -3px; font-size: 16px;"></span> <?php esc_html_e( 'Descargar Todo en ZIP', 'wp-doc-signer' ); ?>
-						</a>
+			<!-- Formulario para acciones masivas -->
+			<form method="post" action="">
+				<?php wp_nonce_field( 'wpds_bulk_action', 'wpds_bulk_action_nonce' ); ?>
+
+				<!-- Barra de navegación y acciones de tabla -->
+				<div class="tablenav top" style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0 10px 0; clear: left;">
+					<div class="alignleft actions bulkactions" style="margin: 0; display: flex; gap: 6px; align-items: center;">
+						<select name="bulk_action" id="bulk-action-selector-top" style="height: 30px; line-height: 28px; padding: 2px 24px 2px 8px;">
+							<option value="-1"><?php esc_html_e( 'Acciones en lote', 'wp-doc-signer' ); ?></option>
+							<option value="download_zip"><?php esc_html_e( 'Descargar seleccionados (.ZIP)', 'wp-doc-signer' ); ?></option>
+							<option value="delete"><?php esc_html_e( 'Eliminar del servidor', 'wp-doc-signer' ); ?></option>
+						</select>
+						<input type="submit" id="doaction" class="button action" value="<?php esc_attr_e( 'Aplicar', 'wp-doc-signer' ); ?>" />
+						
+						<?php if ( $total_items > 0 ) : ?>
+							<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&download_zip=1' ) ); ?>" class="button button-secondary" style="margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; height: 30px;">
+								<span class="dashicons dashicons-download" style="font-size: 16px; width: 16px; height: 16px; line-height: 16px; margin: 0;"></span> 
+								<?php esc_html_e( 'Descargar Historial Completo (.ZIP)', 'wp-doc-signer' ); ?>
+							</a>
+						<?php endif; ?>
+					</div>
+
+					<?php if ( $total_pages > 1 ) : ?>
+						<div class="tablenav-pages" style="margin: 0;">
+							<span class="displaying-num" style="margin-right: 10px; font-style: italic; color: #646970;"><?php echo sprintf( _n( '%s elemento', '%s elementos', $total_items, 'wp-doc-signer' ), number_format_i18n( $total_items ) ); ?></span>
+							<?php
+							echo paginate_links( array(
+								'base'      => add_query_arg( 'paged', '%#%' ),
+								'format'    => '',
+								'total'     => $total_pages,
+								'current'   => $current_page,
+								'prev_text' => __( '&laquo; Anterior', 'wp-doc-signer' ),
+								'next_text' => __( 'Siguiente &raquo;', 'wp-doc-signer' ),
+							) );
+							?>
+						</div>
+					<?php else : ?>
+						<div class="tablenav-pages one-page" style="margin: 0;">
+							<span class="displaying-num" style="font-style: italic; color: #646970;"><?php echo sprintf( _n( '%s elemento', '%s elementos', $total_items, 'wp-doc-signer' ), number_format_i18n( $total_items ) ); ?></span>
+						</div>
 					<?php endif; ?>
 				</div>
 
-				<?php if ( $total_pages > 1 ) : ?>
-					<div class="tablenav-pages" style="margin: 0;">
-						<span class="displaying-num" style="margin-right: 10px; font-style: italic; color: #646970;"><?php echo sprintf( _n( '%s elemento', '%s elementos', $total_items, 'wp-doc-signer' ), number_format_i18n( $total_items ) ); ?></span>
-						<?php
-						echo paginate_links( array(
-							'base'      => add_query_arg( 'paged', '%#%' ),
-							'format'    => '',
-							'total'     => $total_pages,
-							'current'   => $current_page,
-							'prev_text' => __( '&laquo; Anterior', 'wp-doc-signer' ),
-							'next_text' => __( 'Siguiente &raquo;', 'wp-doc-signer' ),
-						) );
-						?>
-					</div>
-				<?php else : ?>
-					<div class="tablenav-pages one-page" style="margin: 0;">
-						<span class="displaying-num" style="font-style: italic; color: #646970;"><?php echo sprintf( _n( '%s elemento', '%s elementos', $total_items, 'wp-doc-signer' ), number_format_i18n( $total_items ) ); ?></span>
-					</div>
-				<?php endif; ?>
-			</div>
-
-			<!-- Tabla de listado con estilos nativos de WP -->
-			<table class="wp-list-table widefat fixed striped table-view-list posts" style="box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-radius: 4px;">
-				<thead>
-					<tr>
-						<th scope="col" id="title" class="manage-column column-title column-primary" style="padding: 12px 10px; font-weight: 700;"><?php esc_html_e( 'Nombre del Documento / Hash único', 'wp-doc-signer' ); ?></th>
-						<th scope="col" id="date" class="manage-column column-date" style="padding: 12px 10px; width: 220px; font-weight: 700;"><?php esc_html_e( 'Fecha y Hora de Firma', 'wp-doc-signer' ); ?></th>
-						<th scope="col" id="size" class="manage-column column-size" style="padding: 12px 10px; width: 130px; text-align: center; font-weight: 700;"><?php esc_html_e( 'Tamaño del PDF', 'wp-doc-signer' ); ?></th>
-						<th scope="col" id="actions" class="manage-column column-actions" style="padding: 12px 10px; width: 160px; text-align: right; font-weight: 700;"><?php esc_html_e( 'Acciones', 'wp-doc-signer' ); ?></th>
-					</tr>
-				</thead>
-				<tbody id="the-list">
-					<?php if ( empty( $files_sliced ) ) : ?>
-						<tr class="no-items">
-							<td class="colspanchange" colspan="4" style="text-align: center; padding: 40px; color: #646970; font-style: italic;">
-								<?php if ( ! empty( $search_query ) ) : ?>
-									<?php esc_html_e( 'No se encontraron PDFs firmados que coincidan con la búsqueda.', 'wp-doc-signer' ); ?>
-								<?php else : ?>
-									<?php esc_html_e( 'No hay documentos PDF firmados en el servidor actualmente.', 'wp-doc-signer' ); ?>
-								<?php endif; ?>
-							</td>
+				<!-- Tabla de listado con estilos nativos de WP -->
+				<table class="wp-list-table widefat fixed striped table-view-list posts" style="box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-radius: 4px;">
+					<thead>
+						<tr>
+							<td id="cb" class="manage-column column-cb check-column wpds-checkbox-cell" style="width: 2.2em; padding: 12px 10px;"><input id="cb-select-all-1" type="checkbox"></td>
+							<th scope="col" id="title" class="manage-column column-title column-primary" style="padding: 12px 10px; font-weight: 700;"><?php esc_html_e( 'Nombre del Documento / Hash único', 'wp-doc-signer' ); ?></th>
+							<th scope="col" id="date" class="manage-column column-date" style="padding: 12px 10px; width: 220px; font-weight: 700;"><?php esc_html_e( 'Fecha y Hora de Firma', 'wp-doc-signer' ); ?></th>
+							<th scope="col" id="size" class="manage-column column-size" style="padding: 12px 10px; width: 130px; text-align: center; font-weight: 700;"><?php esc_html_e( 'Tamaño del PDF', 'wp-doc-signer' ); ?></th>
+							<th scope="col" id="actions" class="manage-column column-actions" style="padding: 12px 10px; width: 160px; text-align: right; font-weight: 700;"><?php esc_html_e( 'Acciones', 'wp-doc-signer' ); ?></th>
 						</tr>
-					<?php else : ?>
-						<?php foreach ( $files_sliced as $file_path ) : 
-							$filename = basename( $file_path );
-							$file_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) );
-							$del_url  = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&delete_file=' . urlencode( $filename ) . '&wpds_del_nonce=' . wp_create_nonce( 'wpds_delete_file_action_' . $filename ) );
-							?>
-							<tr>
-								<td class="title column-title column-primary page-title" style="padding: 12px 10px; vertical-align: middle;">
-									<strong>
-										<a class="row-title" href="<?php echo esc_url( $file_url ); ?>" target="_blank" style="text-decoration: none; color: #2271b1;" title="<?php esc_attr_e( 'Visualizar PDF', 'wp-doc-signer' ); ?>">
-											<span class="dashicons dashicons-pdf" style="vertical-align: middle; margin-right: 5px; color: #d9383a; font-size: 19px; width: 19px; height: 19px;"></span> 
-											<?php echo esc_html( $filename ); ?>
-										</a>
-									</strong>
-								</td>
-								<td class="date column-date" style="padding: 12px 10px; vertical-align: middle; color: #50575e;">
-									<?php echo esc_html( date( 'd/m/Y H:i:s', filemtime( $file_path ) ) ); ?>
-								</td>
-								<td class="size column-size" style="padding: 12px 10px; vertical-align: middle; text-align: center; color: #50575e;">
-									<?php echo esc_html( size_format( filesize( $file_path ) ) ); ?>
-								</td>
-								<td class="actions column-actions" style="padding: 12px 10px; vertical-align: middle; text-align: right;">
-									<a href="<?php echo esc_url( $file_url ); ?>" class="button button-small" target="_blank" style="vertical-align: middle;" title="<?php esc_attr_e( 'Abrir PDF en ventana nueva', 'wp-doc-signer' ); ?>">
-										<span class="dashicons dashicons-visibility" style="font-size: 15px; margin-top: 3px; height: 15px; width: 15px;"></span> <?php esc_html_e( 'Ver', 'wp-doc-signer' ); ?>
-									</a>
-									<a href="<?php echo esc_url( $del_url ); ?>" class="button button-small" style="color: #d63638; border-color: #d63638; background: #fff8f8; vertical-align: middle; margin-left: 4px;" onclick="return confirm('¿Está seguro de que desea eliminar permanentemente este archivo del servidor?');" title="<?php esc_attr_e( 'Eliminar del Servidor', 'wp-doc-signer' ); ?>">
-										<span class="dashicons dashicons-trash" style="font-size: 15px; margin-top: 3px; height: 15px; width: 15px;"></span>
-									</a>
+					</thead>
+					<tbody id="the-list">
+						<?php if ( empty( $files_sliced ) ) : ?>
+							<tr class="no-items">
+								<td class="colspanchange" colspan="5" style="text-align: center; padding: 40px; color: #646970; font-style: italic;">
+									<?php if ( ! empty( $search_query ) ) : ?>
+										<?php esc_html_e( 'No se encontraron PDFs firmados que coincidan con la búsqueda.', 'wp-doc-signer' ); ?>
+									<?php else : ?>
+										<?php esc_html_e( 'No hay documentos PDF firmados en el servidor actualmente.', 'wp-doc-signer' ); ?>
+									<?php endif; ?>
 								</td>
 							</tr>
-						<?php endforeach; ?>
-					<?php endif; ?>
-				</tbody>
-			</table>
+						<?php else : ?>
+							<?php foreach ( $files_sliced as $file_path ) : 
+								$filename = basename( $file_path );
+								$file_url      = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) );
+								$download_url  = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) . '&download=1' );
+								$del_url       = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&delete_file=' . urlencode( $filename ) . '&wpds_del_nonce=' . wp_create_nonce( 'wpds_delete_file_action_' . $filename ) );
+								?>
+								<tr>
+									<th scope="row" class="check-column wpds-checkbox-cell" style="width: 2.2em; padding: 12px 10px; text-align: center; vertical-align: middle;">
+										<input type="checkbox" name="bulk_files[]" value="<?php echo esc_attr( $filename ); ?>">
+									</th>
+									<td class="title column-title column-primary page-title" style="padding: 12px 10px; vertical-align: middle;">
+										<strong>
+											<a class="row-title" href="<?php echo esc_url( $file_url ); ?>" target="_blank" style="text-decoration: none; color: #2271b1;" title="<?php esc_attr_e( 'Visualizar PDF', 'wp-doc-signer' ); ?>">
+												<span class="dashicons dashicons-pdf" style="vertical-align: middle; margin-right: 5px; color: #d9383a; font-size: 19px; width: 19px; height: 19px;"></span> 
+												<?php echo esc_html( $filename ); ?>
+											</a>
+										</strong>
+									</td>
+									<td class="date column-date" style="padding: 12px 10px; vertical-align: middle; color: #50575e;">
+										<?php echo esc_html( date( 'd/m/Y H:i:s', filemtime( $file_path ) ) ); ?>
+									</td>
+									<td class="size column-size" style="padding: 12px 10px; vertical-align: middle; text-align: center; color: #50575e;">
+										<?php echo esc_html( size_format( filesize( $file_path ) ) ); ?>
+									</td>
+									<td class="actions column-actions" style="padding: 12px 10px; vertical-align: middle; text-align: right;">
+										<!-- Ver PDF inline -->
+										<a href="<?php echo esc_url( $file_url ); ?>" class="button wpds-action-btn wpds-view-btn" target="_blank" title="<?php esc_attr_e( 'Visualizar PDF en nueva pestaña', 'wp-doc-signer' ); ?>">
+											<span class="dashicons dashicons-visibility"></span>
+										</a>
+										<!-- Descargar PDF directo -->
+										<a href="<?php echo esc_url( $download_url ); ?>" class="button wpds-action-btn wpds-download-btn" title="<?php esc_attr_e( 'Descargar archivo PDF', 'wp-doc-signer' ); ?>">
+											<span class="dashicons dashicons-download"></span>
+										</a>
+										<!-- Eliminar PDF individual -->
+										<a href="<?php echo esc_url( $del_url ); ?>" class="button wpds-action-btn wpds-delete-btn" onclick="return confirm('¿Está seguro de que desea eliminar permanentemente este archivo del servidor?');" title="<?php esc_attr_e( 'Eliminar permanentemente del servidor', 'wp-doc-signer' ); ?>">
+											<span class="dashicons dashicons-trash"></span>
+										</a>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</tbody>
+					<tfoot>
+						<tr>
+							<td class="manage-column column-cb check-column wpds-checkbox-cell" style="width: 2.2em; padding: 12px 10px;"><input id="cb-select-all-2" type="checkbox"></td>
+							<th scope="col" class="manage-column column-title column-primary" style="padding: 12px 10px; font-weight: 700;"><?php esc_html_e( 'Nombre del Documento / Hash único', 'wp-doc-signer' ); ?></th>
+							<th scope="col" class="manage-column column-date" style="padding: 12px 10px; width: 220px; font-weight: 700;"><?php esc_html_e( 'Fecha y Hora de Firma', 'wp-doc-signer' ); ?></th>
+							<th scope="col" class="manage-column column-size" style="padding: 12px 10px; width: 130px; text-align: center; font-weight: 700;"><?php esc_html_e( 'Tamaño del PDF', 'wp-doc-signer' ); ?></th>
+							<th scope="col" class="manage-column column-actions" style="padding: 12px 10px; width: 160px; text-align: right; font-weight: 700;"><?php esc_html_e( 'Acciones', 'wp-doc-signer' ); ?></th>
+						</tr>
+					</tfoot>
+				</table>
 
-			<!-- Paginación inferior -->
-			<?php if ( $total_pages > 1 ) : ?>
-				<div class="tablenav bottom" style="display: flex; justify-content: flex-end; margin-top: 15px;">
-					<div class="tablenav-pages">
-						<?php
-						echo paginate_links( array(
-							'base'      => add_query_arg( 'paged', '%#%' ),
-							'format'    => '',
-							'total'     => $total_pages,
-							'current'   => $current_page,
-							'prev_text' => __( '&laquo; Anterior', 'wp-doc-signer' ),
-							'next_text' => __( 'Siguiente &raquo;', 'wp-doc-signer' ),
-						) );
-						?>
+				<!-- Paginación inferior -->
+				<?php if ( $total_pages > 1 ) : ?>
+					<div class="tablenav bottom" style="display: flex; justify-content: flex-end; margin-top: 15px;">
+						<div class="tablenav-pages">
+							<?php
+							echo paginate_links( array(
+								'base'      => add_query_arg( 'paged', '%#%' ),
+								'format'    => '',
+								'total'     => $total_pages,
+								'current'   => $current_page,
+								'prev_text' => __( '&laquo; Anterior', 'wp-doc-signer' ),
+								'next_text' => __( 'Siguiente &raquo;', 'wp-doc-signer' ),
+							) );
+							?>
+						</div>
 					</div>
-				</div>
-			<?php endif; ?>
+				<?php endif; ?>
+			</form>
 		</div>
+
+		<!-- Script de jQuery para el select-all interactivo y ágil -->
+		<script>
+		jQuery(document).ready(function($) {
+			// Sincronizar checkboxes de cabecera superior e inferior
+			$('#cb-select-all-1, #cb-select-all-2').change(function() {
+				var checked = $(this).is(':checked');
+				$('tbody input[name="bulk_files[]"]').prop('checked', checked);
+				$('#cb-select-all-1, #cb-select-all-2').prop('checked', checked);
+			});
+			
+			// Si se desmarca alguno manual, desmarcar el select-all superior/inferior
+			$('tbody input[name="bulk_files[]"]').change(function() {
+				var total = $('tbody input[name="bulk_files[]"]').length;
+				var checked = $('tbody input[name="bulk_files[]"]:checked').length;
+				$('#cb-select-all-1, #cb-select-all-2').prop('checked', total === checked);
+			});
+		});
+		</script>
 		<?php
 	}
 }

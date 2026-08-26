@@ -1,145 +1,81 @@
-/**
- * Estilos para la administración del plugin WP Document Signer Pro.
- */
-
-/* Contenedor de Ajustes */
-.wpds-admin-wrap {
-	margin: 20px 20px 0 0;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
-}
+/* Estilos para el Panel de Administración de WP Document Signer Pro */
 
 .wpds-admin-wrap h1 {
-	font-weight: 700;
-	font-size: 23px;
-	color: #1d2327;
-	margin-bottom: 20px;
+    font-weight: 700;
+    color: #1d2327;
+    margin-bottom: 20px;
 }
 
-/* Tarjeta de Opciones */
-.wpds-settings-card {
-	background: #fff;
-	border: 1px solid #c3c4c7;
-	box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
-	padding: 30px;
-	max-width: 900px;
-	border-radius: 8px;
+/* Botones de acción de la tabla de PDFs */
+.wpds-action-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+    margin-left: 4px !important;
+    border-radius: 4px !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
 }
 
-.wpds-settings-card h2.title {
-	border-bottom: 1px solid #f0f0f1;
-	padding-bottom: 10px;
-	margin-top: 30px;
-	color: #1d2327;
+.wpds-action-btn .dashicons {
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    line-height: 16px !important;
+    margin: 0 !important;
 }
 
-.wpds-settings-card h2.title:first-of-type {
-	margin-top: 0;
+/* Botón de Ver PDF (ojo) */
+.wpds-view-btn {
+    color: #2271b1 !important;
+    border-color: #2271b1 !important;
+    background: #fff !important;
 }
 
-/* Campos de Formulario en Ajustes */
-.wpds-settings-card table.form-table th {
-	font-weight: 600;
-	color: #1d2327;
-	width: 220px;
-	padding: 20px 10px 20px 0;
+.wpds-view-btn:hover {
+    background: #2271b1 !important;
+    color: #fff !important;
 }
 
-.wpds-settings-card table.form-table td {
-	padding: 15px 10px;
+/* Botón de Descargar PDF (flecha) */
+.wpds-download-btn {
+    color: #475569 !important;
+    border-color: #94a3b8 !important;
+    background: #fff !important;
 }
 
-/* Input Styles */
-.wpds-settings-card input[type="text"].large-text,
-.wpds-settings-card input[type="email"].regular-text {
-	border-radius: 4px;
-	border: 1px solid #8c8f94;
-	padding: 6px 12px;
-	box-shadow: none;
-	transition: all 0.2s ease;
+.wpds-download-btn:hover {
+    background: #475569 !important;
+    color: #fff !important;
+    border-color: #475569 !important;
 }
 
-.wpds-settings-card input[type="text"].large-text:focus,
-.wpds-settings-card input[type="email"].regular-text:focus {
-	border-color: #2271b1;
-	box-shadow: 0 0 0 1px #2271b1;
+/* Botón de Eliminar PDF (papelera) */
+.wpds-delete-btn {
+    color: #d63638 !important;
+    border-color: #d63638 !important;
+    background: #fff8f8 !important;
 }
 
-.wpds-settings-card p.description {
-	color: #646970;
-	font-style: normal;
-	margin-top: 6px;
+.wpds-delete-btn:hover {
+    background: #d63638 !important;
+    color: #fff !important;
 }
 
-/* Checkboxes */
-.wpds-settings-card input[type="checkbox"] {
-	border-radius: 3px;
-	border: 1px solid #8c8f94;
-	margin-top: 0;
+/* Celdas de checkboxes alineadas */
+.wpds-checkbox-cell {
+    width: 2.2em;
+    padding: 8px 10px !important;
+    vertical-align: middle !important;
+    text-align: center !important;
 }
 
-/* Guía de Placeholders en la edición del CPT */
-.wpds-placeholders-guide table {
-	border-radius: 8px;
-	overflow: hidden;
-}
-
-.wpds-placeholders-guide td code {
-	background: #f0f0f1;
-	color: #2c3338;
-	padding: 3px 6px;
-	border-radius: 4px;
-	font-size: 12px;
-	font-family: Consolas, Monaco, monospace;
-	font-weight: 600;
-}
-
-/* Custom Columns Badges */
-.status-active {
-	display: inline-block;
-	color: #00a32a;
-	font-weight: 600;
-	background: #edfaef;
-	padding: 4px 10px;
-	border-radius: 4px;
-	border: 1px solid #d4ebd5;
-	font-size: 11px;
-	text-transform: uppercase;
-}
-
-.status-paused {
-	display: inline-block;
-	color: #d63638;
-	font-weight: 600;
-	background: #fcf0f1;
-	padding: 4px 10px;
-	border-radius: 4px;
-	border: 1px solid #f8d7da;
-	font-size: 11px;
-	text-transform: uppercase;
-}
-
-/* Metabox lateral de Shortcode */
-.wpds-meta-group select {
-	border-radius: 4px;
-	border: 1px solid #8c8f94;
-	padding: 5px;
-}
-
-.wpds-meta-group select:focus {
-	border-color: #2271b1;
-	box-shadow: 0 0 0 1px #2271b1;
-}
-
-.wpds-meta-group code {
-	display: block;
-	padding: 8px;
-	background: #f0f0f1;
-	border: 1px solid #c3c4c7;
-	border-radius: 4px;
-	font-size: 12px;
-	font-weight: 600;
-	color: #2c3338;
-	text-align: center;
-	margin-top: 8px;
-	cursor: pointer;
+.wpds-checkbox-cell input[type="checkbox"] {
+    margin: 0 !important;
+    vertical-align: middle !important;
 }
