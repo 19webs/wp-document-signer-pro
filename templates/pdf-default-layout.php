@@ -394,9 +394,9 @@
 			</tr>
 		</table>
 
-		<h3 class="section-title"><?php esc_html_e( '7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' ); ?></h3>
+		<h3 class="section-title"><?php echo esc_html( $consentimiento_titulo ); ?></h3>
 		<p style="font-size: 8.5pt; color: #4a5568; margin-top: 0; margin-bottom: 10px; font-style: italic;">
-			<?php esc_html_e( 'Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' ); ?>
+			<?php echo esc_html( $consentimiento_subtitulo ); ?>
 		</p>
 
 		<!-- Tabla de Consentimiento Toggles/Checks -->
@@ -405,24 +405,22 @@
 				<td class="consent-option-cell">
 					<div style="margin-bottom: 15px;">
 						<?php if ( 1 === intval( $form_data['consentimiento'] ) ) : ?>
-							<span class="consent-badge-selected">✓ SÍ ACEPTA</span>
+							<span class="consent-badge-selected">[X] SÍ ACEPTO</span>
 						<?php else : ?>
-							<span class="consent-badge-unselected">[ ] SÍ ACEPTA</span>
+							<span class="consent-badge-unselected">[ ] SÍ ACEPTO</span>
 						<?php endif; ?>
 					</div>
 					<div>
 						<?php if ( 0 === intval( $form_data['consentimiento'] ) ) : ?>
-							<span class="consent-badge-selected">✗ NO ACEPTA</span>
+							<span class="consent-badge-selected">[X] NO ACEPTO</span>
 						<?php else : ?>
-							<span class="consent-badge-unselected">[ ] NO ACEPTA</span>
+							<span class="consent-badge-unselected">[ ] NO ACEPTO</span>
 						<?php endif; ?>
 					</div>
 				</td>
 				<td>
 					<?php if ( $custom_consent_active ) : ?>
-						<p class="consent-text-p">
-							<?php echo wp_kses_post( $consentimiento_declaracion ); ?>
-						</p>
+						<?php echo wp_kses_post( wpautop( $consentimiento_declaracion ) ); ?>
 					<?php else : ?>
 						<p class="consent-text-p">
 							<?php echo sprintf( esc_html__( 'Autorizo a %s / %s y a SP EXPERIENCE ACADEMY, S.L. a captar y utilizar gratuitamente mi imagen y/o voz para la difusión de trabajos realizados por %s en redes sociales y materiales formativos propios.', 'wp-doc-signer' ), esc_html( $est_titular ), esc_html( $est_comercial ), esc_html( $est_titular ) ); ?>
@@ -442,9 +440,9 @@
 		<table class="signatures-row-table" style="margin-top: 25px;">
 			<tr>
 				<td colspan="2" style="background-color: #f8fafc; padding: 12px; border-bottom: none;">
-					<strong><?php esc_html_e( 'PERSONA CLIENTE', 'wp-doc-signer' ); ?></strong>
+					<strong><?php echo esc_html( $consentimiento_declaracion_titulo ); ?></strong>
 					<p style="margin: 5px 0 0 0; font-size: 8.5pt; color: #475569;">
-						<?php esc_html_e( 'Declaro haber recibido esta información y haber marcado libremente mi opción sobre el uso de imagen y/o voz.', 'wp-doc-signer' ); ?>
+						<?php echo esc_html( $consentimiento_declaracion_texto ); ?>
 					</p>
 				</td>
 			</tr>

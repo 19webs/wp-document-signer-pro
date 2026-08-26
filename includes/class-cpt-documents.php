@@ -1,6 +1,6 @@
 <?php
 /**
- * Clase para registrar y gestionar el Custom Post Type "Documentos para Firma".
+ * Registra y gestiona el Custom Post Type "wp_documento" y sus Metaboxes.
  *
  * @package WP_Document_Signer_Pro
  */
@@ -30,106 +30,81 @@ class WPDS_CPT_Documents {
 	 * Constructor.
 	 */
 	private function __construct() {
-		add_action( 'init', array( $this, 'register_cpt' ) );
-		add_action( 'init', array( $this, 'enable_elementor_support' ), 20 );
-		add_action( 'add_meta_boxes', array( $this, 'add_document_metaboxes' ) );
-		add_action( 'save_post_wp_documento', array( $this, 'save_document_meta' ) );
-
-		// Customizar columnas en el listado de administración
+		add_action( 'init', array( $this, 'register_cpt_documento' ) );
+		add_action( 'add_meta_boxes', array( $this, 'add_document_meta_boxes' ) );
+		add_action( 'save_post', array( $this, 'save_document_meta' ) );
+		
+		// Columnas personalizadas en el listado
 		add_filter( 'manage_wp_documento_posts_columns', array( $this, 'set_custom_columns' ) );
-		add_action( 'manage_wp_documento_posts_custom_column', array( $this, 'fill_custom_columns' ), 10, 2 );
-
-		// AJAX hooks para vistas previas
-		add_action( 'wp_ajax_wpds_preview_form', array( $this, 'ajax_preview_form' ) );
-		add_action( 'wp_ajax_wpds_preview_pdf', array( $this, 'ajax_preview_pdf' ) );
+		add_action( 'manage_wp_documento_posts_custom_column', array( $this, 'render_custom_columns' ), 10, 2 );
 	}
 
 	/**
-	 * Registra el Custom Post Type 'wp_documento'.
+	 * Registrar el CPT "wp_documento".
 	 */
-	public function register_cpt() {
+	public function register_cpt_documento() {
 		$labels = array(
-			'name'                  => _x( 'Documentos', 'Post Type General Name', 'wp-doc-signer' ),
-			'singular_name'         => _x( 'Documento', 'Post Type Singular Name', 'wp-doc-signer' ),
-			'menu_name'             => __( 'Firma Documentos', 'wp-doc-signer' ),
-			'name_admin_bar'        => __( 'Documento para Firma', 'wp-doc-signer' ),
-			'all_items'             => __( 'Todos los Documentos', 'wp-doc-signer' ),
-			'add_new_item'          => __( 'Añadir Nuevo Documento', 'wp-doc-signer' ),
-			'add_new'               => __( 'Añadir Nuevo', 'wp-doc-signer' ),
+			'name'                  => _x( 'Documentos', 'Post type general name', 'wp-doc-signer' ),
+			'singular_name'         => _x( 'Documento', 'Post type singular name', 'wp-doc-signer' ),
+			'menu_name'             => _x( 'Firmador Pro', 'Admin Menu text', 'wp-doc-signer' ),
+			'name_admin_bar'        => _x( 'Documento', 'Add New on Toolbar', 'wp-doc-signer' ),
+			'add_new'               => __( 'Añadir nuevo', 'wp-doc-signer' ),
+			'add_new_item'          => __( 'Añadir nuevo Documento', 'wp-doc-signer' ),
+			'new_item'              => __( 'Nuevo Documento', 'wp-doc-signer' ),
 			'edit_item'             => __( 'Editar Documento', 'wp-doc-signer' ),
-			'update_item'           => __( 'Actualizar Documento', 'wp-doc-signer' ),
 			'view_item'             => __( 'Ver Documento', 'wp-doc-signer' ),
-			'search_items'          => __( 'Buscar Documento', 'wp-doc-signer' ),
-			'not_found'             => __( 'No se encontraron documentos', 'wp-doc-signer' ),
-			'not_found_in_trash'    => __( 'No se encontraron documentos en la papelera', 'wp-doc-signer' ),
+			'all_items'             => __( 'Todos los Documentos', 'wp-doc-signer' ),
+			'search_items'          => __( 'Buscar Documentos', 'wp-doc-signer' ),
+			'not_found'             => __( 'No se encontraron documentos.', 'wp-doc-signer' ),
+			'not_found_in_trash'    => __( 'No se encontraron documentos en la papelera.', 'wp-doc-signer' ),
 		);
 
 		$args = array(
-			'label'               => __( 'Documento para Firma', 'wp-doc-signer' ),
-			'description'         => __( 'Documentos legales y consentimientos para firmar', 'wp-doc-signer' ),
-			'labels'              => $labels,
-			'supports'            => array( 'title', 'editor' ),
-			'hierarchical'        => false,
-			'public'              => false, // Privado para evitar acceso directo no autorizado
-			'show_ui'             => true,
-			'show_in_menu'        => true,
-			'menu_position'       => 28,
-			'menu_icon'           => 'dashicons-media-document',
-			'show_in_nav_menus'   => false,
-			'can_export'          => true,
-			'has_archive'         => false,
-			'exclude_from_search' => true,
-			'publicly_queryable'  => false,
-			'rewrite'             => false,
-			'capability_type'     => 'post',
-			'show_in_rest'        => true, // Habilitar editor de bloques moderno
+			'labels'             => $labels,
+			'public'             => false, // Ocultar del frontend público habitual
+			'publicly_queryable' => false,
+			'show_ui'            => true,
+			'show_in_menu'       => true,
+			'query_var'          => true,
+			'rewrite'            => array( 'slug' => 'documentos-firma' ),
+			'capability_type'    => 'post',
+			'has_archive'        => false,
+			'hierarchical'       => false,
+			'menu_position'      => 25,
+			'menu_icon'          => 'dashicons-media-document',
+			'supports'           => array( 'title', 'editor' ), // Título y cuerpo del contrato
 		);
 
 		register_post_type( 'wp_documento', $args );
 	}
 
 	/**
-	 * Activa programáticamente el soporte de Elementor para nuestro CPT de documentos.
+	 * Añadir metaboxes de configuración del documento.
 	 */
-	public function enable_elementor_support() {
-		if ( ! post_type_exists( 'wp_documento' ) ) {
-			return;
-		}
-
-		$allowed_post_types = get_option( 'elementor_active_post_types', array( 'page', 'post' ) );
-		if ( is_array( $allowed_post_types ) && ! in_array( 'wp_documento', $allowed_post_types, true ) ) {
-			$allowed_post_types[] = 'wp_documento';
-			update_option( 'elementor_active_post_types', $allowed_post_types );
-		}
-	}
-
-	/**
-	 * Añadir metaboxes al panel de documentos.
-	 */
-	public function add_document_metaboxes() {
-		// Metabox de Configuración y Vista Previa
+	public function add_document_meta_boxes() {
+		// Ajustes de estado y visualización rápida
 		add_meta_box(
-			'wpds_document_meta',
-			__( 'Configuración y Vista Previa', 'wp-doc-signer' ),
+			'wpds_document_settings',
+			__( 'Acciones y Estado del Documento', 'wp-doc-signer' ),
 			array( $this, 'render_settings_metabox' ),
 			'wp_documento',
 			'side',
-			'default'
+			'high'
 		);
 
-		// Metabox de Datos del Establecimiento
+		// Datos de Establecimiento (NIF, Titular, etc.)
 		add_meta_box(
-			'wpds_establishment_meta',
-			__( 'Datos del Establecimiento (Cabecera del Documento)', 'wp-doc-signer' ),
+			'wpds_establishment_details',
+			__( 'Datos del Establecimiento (Cabecera PDF)', 'wp-doc-signer' ),
 			array( $this, 'render_establishment_metabox' ),
 			'wp_documento',
 			'normal',
 			'high'
 		);
 
-		// Metabox de Textos RGPD Personalizados
+		// Textos RGPD Personalizados
 		add_meta_box(
-			'wpds_rgpd_custom_meta',
+			'wpds_rgpd_details',
 			__( 'Textos de Protección de Datos (RGPD) Personalizados', 'wp-doc-signer' ),
 			array( $this, 'render_rgpd_custom_metabox' ),
 			'wp_documento',
@@ -139,12 +114,11 @@ class WPDS_CPT_Documents {
 	}
 
 	/**
-	 * Renderizar metabox de configuración y botones de vista previa.
+	 * Renderizar el panel lateral de estado y vistas previas.
 	 */
 	public function render_settings_metabox( $post ) {
 		wp_nonce_field( 'wpds_save_document_meta_action', 'wpds_document_meta_nonce' );
 
-		// Obtener metadatos actuales
 		$status = get_post_meta( $post->ID, '_wpds_status', true );
 		if ( empty( $status ) ) {
 			$status = 'active';
@@ -202,19 +176,29 @@ class WPDS_CPT_Documents {
 		$email      = get_post_meta( $post->ID, '_wpds_est_email', true );
 		$phone      = get_post_meta( $post->ID, '_wpds_est_phone', true );
 
-		// Fallback para valores por defecto iniciales si están vacíos (basados en el PDF real)
-		if ( empty( $titular ) && $post->post_date === $post->post_modified ) {
-			$titular   = 'Sara Pérez González';
-			$nif       = '31694014Z';
+		// Fallbacks preestablecidos de Sara Pérez
+		if ( empty( $titular ) ) {
+			$titular = 'Sara Pérez González';
+		}
+		if ( empty( $nif ) ) {
+			$nif = '75817812D';
+		}
+		if ( empty( $comercial ) ) {
 			$comercial = 'Sara Pérez Salón de Autor';
-			$address   = 'C. San Marino, 2, 11405 Jerez de la Frontera, Cádiz';
-			$email     = 'saraperezpeluqueriadeautor@gmail.com';
-			$phone     = 'Teléfono fijo: +34 956 333 125 | Móvil: +34 607 34 51 00';
+		}
+		if ( empty( $address ) ) {
+			$address = 'Calle Ancha, 12, Local 2, 11402 Jerez de la Frontera, Cádiz';
+		}
+		if ( empty( $email ) ) {
+			$email = 'saraperezpeluqueriadeautor@gmail.com';
+		}
+		if ( empty( $phone ) ) {
+			$phone = '601 202 303';
 		}
 		?>
 		<table class="form-table">
 			<tr>
-				<th scope="row"><label for="wpds_est_titular"><?php esc_html_e( 'Nombre del Titular / Responsable', 'wp-doc-signer' ); ?></label></th>
+				<th scope="row"><label for="wpds_est_titular"><?php esc_html_e( 'Nombre del Titular / Empresa', 'wp-doc-signer' ); ?></label></th>
 				<td><input type="text" name="wpds_est_titular" id="wpds_est_titular" value="<?php echo esc_attr( $titular ); ?>" class="regular-text" required /></td>
 			</tr>
 			<tr>
@@ -226,7 +210,7 @@ class WPDS_CPT_Documents {
 				<td><input type="text" name="wpds_est_comercial" id="wpds_est_comercial" value="<?php echo esc_attr( $comercial ); ?>" class="regular-text" required /></td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wpds_est_address"><?php esc_html_e( 'Dirección Física', 'wp-doc-signer' ); ?></label></th>
+				<th scope="row"><label for="wpds_est_address"><?php esc_html_e( 'Dirección Física Completa', 'wp-doc-signer' ); ?></label></th>
 				<td><input type="text" name="wpds_est_address" id="wpds_est_address" value="<?php echo esc_attr( $address ); ?>" class="large-text" required /></td>
 			</tr>
 			<tr>
@@ -266,7 +250,7 @@ class WPDS_CPT_Documents {
 			update_post_meta( $post_id, '_wpds_email', sanitize_email( $_POST['wpds_email'] ) );
 		}
 
-		// Guardar Metadatos del Establecimiento y del RGPD
+		// Guardar Metadatos del Establecimiento y del RGPD/Consentimiento
 		$fields = array(
 			'wpds_est_titular',
 			'wpds_est_nif',
@@ -278,7 +262,11 @@ class WPDS_CPT_Documents {
 			'wpds_rgpd_destinatarios',
 			'wpds_rgpd_conservacion',
 			'wpds_rgpd_derechos',
-			'wpds_consentimiento_texto'
+			'wpds_consentimiento_titulo',
+			'wpds_consentimiento_subtitulo',
+			'wpds_consentimiento_texto',
+			'wpds_consentimiento_declaracion_titulo',
+			'wpds_consentimiento_declaracion_texto',
 		);
 		foreach ( $fields as $field ) {
 			if ( isset( $_POST[ $field ] ) ) {
@@ -288,15 +276,22 @@ class WPDS_CPT_Documents {
 	}
 
 	/**
-	 * Renderizar metabox para configurar los textos de protección de datos (RGPD) personalizados.
+	 * Renderizar metabox para configurar los textos de protección de datos (RGPD) y Consentimiento personalizados.
 	 */
 	public function render_rgpd_custom_metabox( $post ) {
 		$finalidad     = get_post_meta( $post->ID, '_wpds_rgpd_finalidad', true );
 		$destinatarios = get_post_meta( $post->ID, '_wpds_rgpd_destinatarios', true );
 		$conservacion  = get_post_meta( $post->ID, '_wpds_rgpd_conservacion', true );
 		$derechos      = get_post_meta( $post->ID, '_wpds_rgpd_derechos', true );
-		$consentimiento_texto = get_post_meta( $post->ID, '_wpds_consentimiento_texto', true );
+		
+		// Nuevos campos de personalización de sección de Consentimiento
+		$consentimiento_titulo             = get_post_meta( $post->ID, '_wpds_consentimiento_titulo', true );
+		$consentimiento_subtitulo          = get_post_meta( $post->ID, '_wpds_consentimiento_subtitulo', true );
+		$consentimiento_texto              = get_post_meta( $post->ID, '_wpds_consentimiento_texto', true );
+		$consentimiento_declaracion_titulo = get_post_meta( $post->ID, '_wpds_consentimiento_declaracion_titulo', true );
+		$consentimiento_declaracion_texto  = get_post_meta( $post->ID, '_wpds_consentimiento_declaracion_texto', true );
 		?>
+		<h4 style="border-bottom: 1px solid #dfdfdf; padding-bottom: 10px; margin-top: 20px; font-weight: bold; color: #1d2327; font-size: 14px;"><?php esc_html_e( '1. Tabla de Información Básica (RGPD)', 'wp-doc-signer' ); ?></h4>
 		<table class="form-table">
 			<tr>
 				<th scope="row"><label for="wpds_rgpd_finalidad"><?php esc_html_e( 'Finalidades y Base Jurídica', 'wp-doc-signer' ); ?></label></th>
@@ -322,15 +317,43 @@ class WPDS_CPT_Documents {
 					<textarea name="wpds_rgpd_derechos" id="wpds_rgpd_derechos" rows="3" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Acceso, rectificación, supresión, limitación... mediante email...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $derechos ); ?></textarea>
 				</td>
 			</tr>
+		</table>
+
+		<h4 style="border-bottom: 1px solid #dfdfdf; padding-bottom: 10px; margin-top: 30px; font-weight: bold; color: #1d2327; font-size: 14px;"><?php esc_html_e( '2. Consentimiento Opcional de Imagen y Voz', 'wp-doc-signer' ); ?></h4>
+		<table class="form-table">
 			<tr>
-				<th scope="row"><label for="wpds_consentimiento_texto"><?php esc_html_e( 'Texto Declaración de Consentimiento (Imagen/Voz)', 'wp-doc-signer' ); ?></label></th>
+				<th scope="row"><label for="wpds_consentimiento_titulo"><?php esc_html_e( 'Título de la Sección', 'wp-doc-signer' ); ?></label></th>
 				<td>
-					<textarea name="wpds_consentimiento_texto" id="wpds_consentimiento_texto" rows="4" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Autorizo a {titular} / {comercial} a captar y utilizar gratuitamente mi imagen y/o voz...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $consentimiento_texto ); ?></textarea>
-					<p class="description"><?php esc_html_e( 'Puedes usar los tags {titular} y {comercial} para cargarlos dinámicamente.', 'wp-doc-signer' ); ?></p>
+					<input type="text" name="wpds_consentimiento_titulo" id="wpds_consentimiento_titulo" value="<?php echo esc_attr( $consentimiento_titulo ); ?>" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: 7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' ); ?>" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_consentimiento_subtitulo"><?php esc_html_e( 'Subtítulo / Instrucciones', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<textarea name="wpds_consentimiento_subtitulo" id="wpds_consentimiento_subtitulo" rows="2" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $consentimiento_subtitulo ); ?></textarea>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_consentimiento_texto"><?php esc_html_e( 'Párrafos de Cláusula de Consentimiento', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<textarea name="wpds_consentimiento_texto" id="wpds_consentimiento_texto" rows="6" class="large-text" placeholder="<?php esc_attr_e( 'Introduce aquí las cláusulas del consentimiento. Puedes usar saltos de línea para separar párrafos. Admite variables {titular} y {comercial}. Si se deja vacío, cargará los tres párrafos predeterminados de Sara Pérez.', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $consentimiento_texto ); ?></textarea>
+					<p class="description"><?php esc_html_e( 'Si dejas este campo vacío, se usarán los tres párrafos del salón por defecto (Autorización a salón y SP Academy, fines formativos, retirada, etc.).', 'wp-doc-signer' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_consentimiento_declaracion_titulo"><?php esc_html_e( 'Título de Declaración (Firma)', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<input type="text" name="wpds_consentimiento_declaracion_titulo" id="wpds_consentimiento_declaracion_titulo" value="<?php echo esc_attr( $consentimiento_declaracion_titulo ); ?>" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: PERSONA CLIENTE', 'wp-doc-signer' ); ?>" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_consentimiento_declaracion_texto"><?php esc_html_e( 'Texto de Declaración (Firma)', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<textarea name="wpds_consentimiento_declaracion_texto" id="wpds_consentimiento_declaracion_texto" rows="2" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Declaro haber recibido esta información y haber marcado libremente mi opción sobre el uso de imagen y/o voz.', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $consentimiento_declaracion_texto ); ?></textarea>
 				</td>
 			</tr>
 		</table>
-		<p class="description"><?php esc_html_e( 'Deja estos campos vacíos para usar los textos legales estándar de Sara Pérez Salón de Autor por defecto.', 'wp-doc-signer' ); ?></p>
+		<p class="description" style="margin-top: 15px;"><?php esc_html_e( 'Deja cualquier campo vacío para usar los textos legales estándar de Sara Pérez Salón de Autor por defecto.', 'wp-doc-signer' ); ?></p>
 		<?php
 	}
 
@@ -350,157 +373,22 @@ class WPDS_CPT_Documents {
 	}
 
 	/**
-	 * Rellenar columnas personalizadas.
+	 * Renderizar columnas personalizadas en el listado.
 	 */
-	public function fill_custom_columns( $column, $post_id ) {
+	public function render_custom_columns( $column, $post_id ) {
 		switch ( $column ) {
 			case 'wpds_status':
 				$status = get_post_meta( $post_id, '_wpds_status', true );
 				if ( 'paused' === $status ) {
-					echo '<span class="status-paused">' . esc_html__( 'Pausado', 'wp-doc-signer' ) . '</span>';
+					echo '<span class="post-state" style="color:#d63638; font-weight:bold;">' . esc_html__( 'Pausado', 'wp-doc-signer' ) . '</span>';
 				} else {
-					echo '<span class="status-active">' . esc_html__( 'Activo', 'wp-doc-signer' ) . '</span>';
+					echo '<span class="post-state" style="color:#2271b1; font-weight:bold;">' . esc_html__( 'Activo', 'wp-doc-signer' ) . '</span>';
 				}
 				break;
 
 			case 'wpds_shortcode':
-				echo '<code style="user-select:all; background:#eaeaea; padding:3px 6px; border:1px solid #ccc; border-radius:3px; font-size:11px;">[firmar_documento id="' . esc_attr( $post_id ) . '"]</code>';
+				echo '<code style="background:#f0f0f1; padding:3px 6px; border-radius:3px; font-size:11px;">[firmar_documento id="' . esc_attr( $post_id ) . '"]</code>';
 				break;
-		}
-	}
-
-	/**
-	 * Callback para la Vista Previa del Formulario en Frontend (Modo Quiosco).
-	 */
-	public function ajax_preview_form() {
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( esc_html__( 'Acceso denegado. Permisos insuficientes.', 'wp-doc-signer' ) );
-		}
-
-		$post_id = isset( $_GET['post_id'] ) ? intval( $_GET['post_id'] ) : 0;
-		$nonce   = isset( $_GET['nonce'] ) ? sanitize_text_field( $_GET['nonce'] ) : '';
-
-		if ( ! wp_verify_nonce( $nonce, 'wpds_preview_form_' . $post_id ) ) {
-			wp_die( esc_html__( 'Error de seguridad o sesión expirada.', 'wp-doc-signer' ) );
-		}
-
-		$post = get_post( $post_id );
-		if ( ! $post || 'wp_documento' !== $post->post_type ) {
-			wp_die( esc_html__( 'Documento inválido.', 'wp-doc-signer' ) );
-		}
-
-		?>
-		<!DOCTYPE html>
-		<html <?php language_attributes(); ?>>
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-			<title><?php echo sprintf( esc_html__( 'Vista Previa: %s', 'wp-doc-signer' ), esc_html( $post->post_title ) ); ?></title>
-			<?php wp_head(); ?>
-			<style>
-				body {
-					background-color: #f1f5f9;
-					margin: 0;
-					padding: 20px;
-					box-sizing: border-box;
-				}
-				.wpds-preview-banner {
-					max-width: 780px;
-					margin: 10px auto 20px auto;
-					background: #1e293b;
-					color: #ffffff;
-					padding: 12px 20px;
-					border-radius: 12px;
-					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-					font-size: 13px;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-					box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-				}
-				.wpds-preview-close {
-					background: #475569;
-					color: #ffffff;
-					border: none;
-					padding: 6px 12px;
-					border-radius: 6px;
-					cursor: pointer;
-					font-weight: 600;
-					transition: background 0.2s;
-				}
-				.wpds-preview-close:hover {
-					background: #334155;
-				}
-			</style>
-		</head>
-		<body>
-			<div class="wpds-preview-banner">
-				<span><strong><?php esc_html_e( 'Modo Vista Previa de Formulario:', 'wp-doc-signer' ); ?></strong> <?php esc_html_e( 'Así es como el cliente visualizará y firmará este documento en un iPad, Tablet o Web.', 'wp-doc-signer' ); ?></span>
-				<button class="wpds-preview-close" onclick="window.close()"><?php esc_html_e( 'Cerrar Vista Previa', 'wp-doc-signer' ); ?></button>
-			</div>
-
-			<?php echo do_shortcode( '[firmar_documento id="' . $post_id . '"]' ); ?>
-
-			<?php wp_footer(); ?>
-		</body>
-		</html>
-		<?php
-		exit;
-	}
-
-	/**
-	 * Callback para la Vista Previa del PDF de Muestra.
-	 */
-	public function ajax_preview_pdf() {
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_die( esc_html__( 'Acceso denegado. Permisos insuficientes.', 'wp-doc-signer' ) );
-		}
-
-		$post_id = isset( $_GET['post_id'] ) ? intval( $_GET['post_id'] ) : 0;
-		$nonce   = isset( $_GET['nonce'] ) ? sanitize_text_field( $_GET['nonce'] ) : '';
-
-		if ( ! wp_verify_nonce( $nonce, 'wpds_preview_pdf_' . $post_id ) ) {
-			wp_die( esc_html__( 'Error de seguridad o sesión expirada.', 'wp-doc-signer' ) );
-		}
-
-		$post = get_post( $post_id );
-		if ( ! $post || 'wp_documento' !== $post->post_type ) {
-			wp_die( esc_html__( 'Documento inválido.', 'wp-doc-signer' ) );
-		}
-
-		// Obtener datos ficticios de demostración
-		$mock_data = array(
-			'nombre'         => 'Juan Pérez Gómez (FIRMADO DE PRUEBA)',
-			'telefono'       => '+34 600 123 456',
-			'email'          => 'juan.perez.prueba@ejemplo.com',
-			'dni'            => '12345678Z',
-			'fecha'          => date( 'd/m/Y' ),
-			'consentimiento' => 1,
-			'firma_1'        => WPDS_PDF_Engine::get_instance()->get_mock_signature_base64(),
-			'firma_2'        => WPDS_PDF_Engine::get_instance()->get_mock_signature_base64(),
-		);
-
-		// Generar PDF
-		$pdf_result = WPDS_PDF_Engine::get_instance()->generate_pdf( $post_id, $mock_data );
-
-		if ( is_wp_error( $pdf_result ) ) {
-			wp_die( esc_html( $pdf_result->get_error_message() ) );
-		}
-
-		$file_path = $pdf_result['file_path'];
-
-		if ( file_exists( $file_path ) ) {
-			// Stream el PDF directamente al navegador
-			header( 'Content-Type: application/pdf' );
-			header( 'Content-Disposition: inline; filename="MUESTRA_' . sanitize_title( $post->post_title ) . '.pdf"' );
-			header( 'Content-Length: ' . filesize( $file_path ) );
-			readfile( $file_path );
-			
-			// Borrar inmediatamente el archivo PDF temporal generado
-			unlink( $file_path );
-			exit;
-		} else {
-			wp_die( esc_html__( 'No se pudo generar el archivo de muestra en el servidor.', 'wp-doc-signer' ) );
 		}
 	}
 }

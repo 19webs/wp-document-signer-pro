@@ -86,12 +86,17 @@ class WPDS_Shortcode_Renderer {
 		$est_email     = get_post_meta( $post->ID, '_wpds_est_email', true );
 		$est_phone     = get_post_meta( $post->ID, '_wpds_est_phone', true );
 
-		// Obtener metadatos de protección de datos personalizados
+		// Obtener metadatos de protección de datos y consentimiento personalizados
 		$meta_finalidad            = get_post_meta( $post->ID, '_wpds_rgpd_finalidad', true );
 		$meta_destinatarios        = get_post_meta( $post->ID, '_wpds_rgpd_destinatarios', true );
 		$meta_conservacion         = get_post_meta( $post->ID, '_wpds_rgpd_conservacion', true );
 		$meta_derechos             = get_post_meta( $post->ID, '_wpds_rgpd_derechos', true );
-		$meta_consentimiento_texto = get_post_meta( $post->ID, '_wpds_consentimiento_texto', true );
+		
+		$meta_consentimiento_titulo             = get_post_meta( $post->ID, '_wpds_consentimiento_titulo', true );
+		$meta_consentimiento_subtitulo          = get_post_meta( $post->ID, '_wpds_consentimiento_subtitulo', true );
+		$meta_consentimiento_texto              = get_post_meta( $post->ID, '_wpds_consentimiento_texto', true );
+		$meta_consentimiento_declaracion_titulo = get_post_meta( $post->ID, '_wpds_consentimiento_declaracion_titulo', true );
+		$meta_consentimiento_declaracion_texto  = get_post_meta( $post->ID, '_wpds_consentimiento_declaracion_texto', true );
 
 		// Textos definitivos con fallbacks legales por defecto
 		$rgpd_finalidad = ! empty( $meta_finalidad ) ? $meta_finalidad : __( 'Gestionar la reserva y la relación precontractual/contractual, prestar y documentar el servicio, gestionar pagos y cumplir obligaciones legales, así como atender o defender reclamaciones. Bases: ejecución del contrato, medidas precontractuales, obligaciones legales y, cuando proceda, interés legítimo para la defensa de reclamaciones.', 'wp-doc-signer' );
@@ -102,15 +107,20 @@ class WPDS_Shortcode_Renderer {
 
 		$rgpd_derechos = ! empty( $meta_derechos ) ? $meta_derechos : sprintf( __( 'Acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, mediante el email indicado (%s). También puede reclamar ante la Agencia Española de Protección de Datos.', 'wp-doc-signer' ), $est_email );
 
-		// Reemplazar placeholders en el texto del consentimiento opcional
-		if ( ! empty( $meta_consentimiento_texto ) ) {
+		$consentimiento_titulo = ! empty( $meta_consentimiento_titulo ) ? $meta_consentimiento_titulo : __( '7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' );
+		$consentimiento_subtitulo = ! empty( $meta_consentimiento_subtitulo ) ? $meta_consentimiento_subtitulo : __( 'Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' );
+		$consentimiento_declaracion_titulo = ! empty( $meta_consentimiento_declaracion_titulo ) ? $meta_consentimiento_declaracion_titulo : __( 'PERSONA CLIENTE', 'wp-doc-signer' );
+		$consentimiento_declaracion_texto = ! empty( $meta_consentimiento_declaracion_texto ) ? $meta_consentimiento_declaracion_texto : __( 'Declaro haber recibido esta información y haber marcado libremente mi opción sobre el uso de imagen y/o voz.', 'wp-doc-signer' );
+
+		$custom_consent_active = ! empty( $meta_consentimiento_texto );
+		if ( $custom_consent_active ) {
 			$consentimiento_declaracion = str_replace(
 				array( '{titular}', '{comercial}' ),
 				array( $est_titular, $est_comercial ),
 				$meta_consentimiento_texto
 			);
 		} else {
-			$consentimiento_declaracion = sprintf( __( 'Autorizo a %s / %s a captar y utilizar gratuitamente mi imagen y/o voz para la difusión de trabajos realizados por la marca en redes sociales y materiales formativos propios. La autorización puede retirarse en cualquier momento. La retirada no afecta a la licitud de los usos anteriores. Desde su recepción cesarán los nuevos usos y se tramitará sin dilación indebida en un plazo máximo de 15 días hábiles.', 'wp-doc-signer' ), $est_titular, $est_comercial );
+			$consentimiento_declaracion = '';
 		}
 
 		// Obtener contenido del documento (las cláusulas)
@@ -350,8 +360,8 @@ class WPDS_Shortcode_Renderer {
 						</table>
 					</div>
 
-					<h3 class="wpds-section-sub-title" style="margin-top: 2rem;"><?php esc_html_e( '7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' ); ?></h3>
-					<p class="description" style="margin-bottom: 1.5rem;"><?php esc_html_e( 'Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' ); ?></p>
+					<h3 class="wpds-section-sub-title" style="margin-top: 2rem;"><?php echo esc_html( $consentimiento_titulo ); ?></h3>
+					<p class="description" style="margin-bottom: 1.5rem;"><?php echo esc_html( $consentimiento_subtitulo ); ?></p>
 
 					<!-- Selector de Consentimiento Imagen SÍ / NO -->
 					<div class="wpds-consent-interactive-block">
@@ -369,13 +379,22 @@ class WPDS_Shortcode_Renderer {
 
 						<div class="wpds-consent-statement-card">
 							<p><strong><?php esc_html_e( 'DECLARACIÓN:', 'wp-doc-signer' ); ?></strong></p>
-							<p><?php echo wp_kses_post( $consentimiento_declaracion ); ?></p>
+							<?php if ( $custom_consent_active ) : ?>
+								<?php echo wp_kses_post( wpautop( $consentimiento_declaracion ) ); ?>
+							<?php else : ?>
+								<p><?php echo sprintf( esc_html__( 'Autorizo a %s / %s y a SP EXPERIENCE ACADEMY, S.L. a captar y utilizar gratuitamente mi imagen y/o voz para la difusión de trabajos realizados por %s en redes sociales y materiales formativos propios.', 'wp-doc-signer' ), esc_html( $est_titular ), esc_html( $est_comercial ), esc_html( $est_titular ) ); ?></p>
+								<p><?php esc_html_e( 'Para el uso formativo autorizado, SP EXPERIENCE ACADEMY, S.L. (CIF B22608962, Calle Mar del Norte, 5, 11405 Jerez de la Frontera, Cádiz; mismo email de contacto) podrá tratar la imagen como responsable de sus propios materiales formativos. La difusión en redes sociales implica publicación en plataformas de terceros, cuyo tratamiento posterior se rige por sus propias políticas.', 'wp-doc-signer' ); ?></p>
+								<p><?php esc_html_e( 'La autorización puede retirarse en cualquier momento. La retirada no afecta a la licitud de los usos anteriores. Desde su recepción cesarán los nuevos usos y, cuando proceda retirar contenidos de perfiles o canales bajo control directo de los responsables, se tramitará sin dilación indebida y en un plazo máximo de 15 días hábiles. Respecto de copias o redistribuciones realizadas por terceros fuera de su control directo, se adoptarán las medidas razonables legalmente exigibles.', 'wp-doc-signer' ); ?></p>
+							<?php endif; ?>
 						</div>
 					</div>
 
-					<p class="wpds-intro-declaration" style="margin-top: 2rem;">
-						<?php esc_html_e( 'Declaro haber recibido esta información y haber marcado libremente mi opción sobre el uso de imagen y/o voz.', 'wp-doc-signer' ); ?>
-					</p>
+					<div class="wpds-consent-declaracion-wrapper" style="margin-top: 2rem;">
+						<p class="wpds-intro-declaration">
+							<strong><?php echo esc_html( $consentimiento_declaracion_titulo ); ?>:</strong><br/>
+							<?php echo esc_html( $consentimiento_declaracion_texto ); ?>
+						</p>
+					</div>
 
 					<!-- Sección de firmas Página 2 -->
 					<div class="wpds-signatures-flex">

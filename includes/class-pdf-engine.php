@@ -77,7 +77,11 @@ class WPDS_PDF_Engine {
 			'rgpd_destinatarios' => get_post_meta( $document_id, '_wpds_rgpd_destinatarios', true ),
 			'rgpd_conservacion'  => get_post_meta( $document_id, '_wpds_rgpd_conservacion', true ),
 			'rgpd_derechos'      => get_post_meta( $document_id, '_wpds_rgpd_derechos', true ),
+			'consentimiento_titulo' => get_post_meta( $document_id, '_wpds_consentimiento_titulo', true ),
+			'consentimiento_subtitulo' => get_post_meta( $document_id, '_wpds_consentimiento_subtitulo', true ),
 			'consentimiento_texto' => get_post_meta( $document_id, '_wpds_consentimiento_texto', true ),
+			'consentimiento_declaracion_titulo' => get_post_meta( $document_id, '_wpds_consentimiento_declaracion_titulo', true ),
+			'consentimiento_declaracion_texto' => get_post_meta( $document_id, '_wpds_consentimiento_declaracion_texto', true ),
 		);
 
 		// Obtener y parsear el cuerpo del documento
@@ -157,12 +161,17 @@ class WPDS_PDF_Engine {
 		$est_email     = $est_data['email'];
 		$est_phone     = $est_data['phone'];
 
-		// Asignar variables de textos RGPD con fallbacks para la plantilla
-		$meta_finalidad            = isset( $est_data['rgpd_finalidad'] ) ? $est_data['rgpd_finalidad'] : '';
-		$meta_destinatarios        = isset( $est_data['rgpd_destinatarios'] ) ? $est_data['rgpd_destinatarios'] : '';
-		$meta_conservacion         = isset( $est_data['rgpd_conservacion'] ) ? $est_data['rgpd_conservacion'] : '';
-		$meta_derechos             = isset( $est_data['rgpd_derechos'] ) ? $est_data['rgpd_derechos'] : '';
-		$meta_consentimiento_texto = isset( $est_data['consentimiento_texto'] ) ? $est_data['consentimiento_texto'] : '';
+		// Asignar variables de textos RGPD y consentimiento con fallbacks para la plantilla
+		$meta_finalidad                         = isset( $est_data['rgpd_finalidad'] ) ? $est_data['rgpd_finalidad'] : '';
+		$meta_destinatarios                     = isset( $est_data['rgpd_destinatarios'] ) ? $est_data['rgpd_destinatarios'] : '';
+		$meta_conservacion                      = isset( $est_data['rgpd_conservacion'] ) ? $est_data['rgpd_conservacion'] : '';
+		$meta_derechos                          = isset( $est_data['rgpd_derechos'] ) ? $est_data['rgpd_derechos'] : '';
+		
+		$meta_consentimiento_titulo             = isset( $est_data['consentimiento_titulo'] ) ? $est_data['consentimiento_titulo'] : '';
+		$meta_consentimiento_subtitulo          = isset( $est_data['consentimiento_subtitulo'] ) ? $est_data['consentimiento_subtitulo'] : '';
+		$meta_consentimiento_texto              = isset( $est_data['consentimiento_texto'] ) ? $est_data['consentimiento_texto'] : '';
+		$meta_consentimiento_declaracion_titulo = isset( $est_data['consentimiento_declaracion_titulo'] ) ? $est_data['consentimiento_declaracion_titulo'] : '';
+		$meta_consentimiento_declaracion_texto  = isset( $est_data['consentimiento_declaracion_texto'] ) ? $est_data['consentimiento_declaracion_texto'] : '';
 
 		$rgpd_finalidad = ! empty( $meta_finalidad ) ? $meta_finalidad : __( 'Gestionar la reserva y la relación precontractual/contractual, prestar y documentar el servicio, gestionar pagos y cumplir obligaciones legales, así como atender o defender reclamaciones. Bases: ejecución del contrato, medidas precontractuales, obligaciones legales y, cuando proceda, interés legítimo para la defensa de reclamaciones.', 'wp-doc-signer' );
 
@@ -171,6 +180,11 @@ class WPDS_PDF_Engine {
 		$rgpd_conservacion = ! empty( $meta_conservacion ) ? $meta_conservacion : __( 'Durante la relación con la persona cliente y, posteriormente, durante los plazos legales aplicables para atender obligaciones y posibles responsabilidades.', 'wp-doc-signer' );
 
 		$rgpd_derechos = ! empty( $meta_derechos ) ? $meta_derechos : sprintf( __( 'Acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, mediante el email indicado (%s). También puede reclamar ante la Agencia Española de Protección de Datos.', 'wp-doc-signer' ), $est_email );
+
+		$consentimiento_titulo = ! empty( $meta_consentimiento_titulo ) ? $meta_consentimiento_titulo : __( '7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' );
+		$consentimiento_subtitulo = ! empty( $meta_consentimiento_subtitulo ) ? $meta_consentimiento_subtitulo : __( 'Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' );
+		$consentimiento_declaracion_titulo = ! empty( $meta_consentimiento_declaracion_titulo ) ? $meta_consentimiento_declaracion_titulo : __( 'PERSONA CLIENTE', 'wp-doc-signer' );
+		$consentimiento_declaracion_texto = ! empty( $meta_consentimiento_declaracion_texto ) ? $meta_consentimiento_declaracion_texto : __( 'Declaro haber recibido esta información y haber marcado libremente mi opción sobre el uso de imagen y/o voz.', 'wp-doc-signer' );
 
 		// Procesar texto de declaración
 		$custom_consent_active = ! empty( $meta_consentimiento_texto );

@@ -40,6 +40,8 @@ class WPDS_Admin_Settings {
 		
 		// Filtro nativo de WordPress para inyectar actualizaciones automáticas desde GitHub
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_plugin_update' ) );
+		// Filtro para adjuntar el token de autorización durante la descarga del ZIP del repositorio privado
+		add_filter( 'http_request_args', array( $this, 'add_github_token_to_download' ), 10, 2 );
 	}
 
 	/**
@@ -167,6 +169,22 @@ class WPDS_Admin_Settings {
 			'wpds-settings',
 			'wpds_files_section'
 		);
+
+		// NUEVA SECCIÓN: Configuración de Actualizaciones Automáticas (GitHub)
+		add_settings_section(
+			'wpds_github_section',
+			__( 'Configuración de Actualizaciones automáticas (GitHub)', 'wp-doc-signer' ),
+			array( $this, 'render_github_section_description' ),
+			'wpds-settings'
+		);
+
+		add_settings_field(
+			'github_token',
+			__( 'Token de Acceso Personal (classic PAT)', 'wp-doc-signer' ),
+			array( $this, 'render_github_token_field' ),
+			'wpds-settings',
+			'wpds_github_section'
+		);
 	}
 
 	/**
@@ -212,6 +230,12 @@ class WPDS_Admin_Settings {
 		// Guardado local
 		$output['save_local'] = isset( $input['save_local'] ) ? 1 : 0;
 
+		// Token de GitHub
+		$output['github_token'] = isset( $input['github_token'] ) ? sanitize_text_field( $input['github_token'] ) : '';
+
+		// Si cambia el token, invalidar la caché de la última versión
+		delete_transient( 'wpds_latest_github_version' );
+
 		return $output;
 	}
 
@@ -229,6 +253,10 @@ class WPDS_Admin_Settings {
 
 	public function render_files_section_description() {
 		echo '<p>' . esc_html__( 'Configura el comportamiento de almacenamiento local en el servidor y la imagen que aparecerá de fondo en los PDF.', 'wp-doc-signer' ) . '</p>';
+	}
+
+	public function render_github_section_description() {
+		echo '<p>' . esc_html__( 'Si tu repositorio de GitHub es privado, debes ingresar un Token de Acceso Personal (classic PAT) con permisos de lectura para que WordPress pueda comprobar e instalar actualizaciones de forma automática.', 'wp-doc-signer' ) . '</p>';
 	}
 
 	public function render_admin_emails_field() {
@@ -313,6 +341,13 @@ class WPDS_Admin_Settings {
 		echo '<p class="description" style="color: #646970;">' . esc_html__( 'Los archivos se protegerán automáticamente mediante restricciones de acceso .htaccess en servidores basados en Apache.', 'wp-doc-signer' ) . '</p>';
 	}
 
+	public function render_github_token_field() {
+		$options = get_option( 'wpds_settings' );
+		$value = isset( $options['github_token'] ) ? $options['github_token'] : '';
+		echo '<input type="password" name="wpds_settings[github_token]" class="regular-text" value="' . esc_attr( $value ) . '" placeholder="ghp_..." />';
+		echo '<p class="description">' . esc_html__( 'Genera tu token en GitHub (Settings > Developer Settings > Personal Access Tokens > Tokens classic) marcando la casilla "repo" para repositorios privados.', 'wp-doc-signer' ) . '</p>';
+	}
+
 	/**
 	 * Maneja la descarga masiva en ZIP de todos los PDF firmados.
 	 */
@@ -364,7 +399,6 @@ class WPDS_Admin_Settings {
 	/**
 	 * Transmite y muestra de forma segura el archivo PDF para administradores autorizados.
 	 * Bypassea la restricción del .htaccess del directorio de subidas.
-	 * Soporta modo ver inline y descargar directo (attachment) mediante parámetro.
 	 */
 	public function handle_pdf_view() {
 		if ( isset( $_GET['page'] ) && ( 'wpds-settings' === $_GET['page'] || 'wpds-signed-docs' === $_GET['page'] ) && isset( $_GET['view_pdf'] ) ) {
@@ -378,7 +412,6 @@ class WPDS_Admin_Settings {
 			$file_path  = $target_dir . '/' . basename( $file_name );
 
 			if ( file_exists( $file_path ) && 'pdf' === pathinfo( $file_path, PATHINFO_EXTENSION ) ) {
-				// Elegir disposición: attachment (descargar archivo) o inline (ver en navegador)
 				$disposition = ( isset( $_GET['download'] ) && '1' === $_GET['download'] ) ? 'attachment' : 'inline';
 				
 				header( 'Content-Type: application/pdf' );
@@ -435,7 +468,7 @@ class WPDS_Admin_Settings {
 			$files  = isset( $_POST['bulk_files'] ) ? array_map( 'sanitize_text_field', $_POST['bulk_files'] ) : array();
 
 			if ( empty( $action ) || '-1' === $action || empty( $files ) ) {
-				return; // Nada seleccionado o acción inválida
+				return;
 			}
 
 			$upload_dir = wp_upload_dir();
@@ -487,6 +520,52 @@ class WPDS_Admin_Settings {
 	}
 
 	/**
+	 * Diagnostica la conexión a GitHub y retorna el estado o errores específicos.
+	 */
+	public function get_github_connection_status() {
+		$url = 'https://api.github.com/repos/19webs/wp-document-signer-pro/tags';
+		$args = array(
+			'timeout'    => 5,
+			'headers'    => array(
+				'Accept'     => 'application/vnd.github.v3+json',
+				'User-Agent' => '19webs-Updater-Diagnostic/' . WPDS_VERSION,
+			),
+		);
+
+		// Adjuntar token si está guardado
+		$options = get_option( 'wpds_settings' );
+		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
+		if ( ! empty( $token ) ) {
+			$args['headers']['Authorization'] = 'token ' . $token;
+		}
+
+		$response = wp_remote_get( $url, $args );
+
+		if ( is_wp_error( $response ) ) {
+			return '🔴 Error de conexión local: ' . $response->get_error_message();
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( 200 === $code ) {
+			return '🟢 GitHub conectado correctamente (Repositorio Accesible)';
+		}
+
+		if ( 404 === $code ) {
+			return '🔴 Error 404: Repositorio no encontrado. Si es un repositorio privado, asegúrate de ingresar tu Token de GitHub (PAT) abajo.';
+		}
+
+		if ( 403 === $code ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			if ( isset( $body['message'] ) && strpos( $body['message'], 'rate limit' ) !== false ) {
+				return '🔴 Error 403: Límite de peticiones de la API de GitHub excedido temporalmente para esta IP.';
+			}
+			return '🔴 Error 403: Acceso prohibido. Verifica que el Token de Acceso sea válido y tenga permisos de lectura.';
+		}
+
+		return '🔴 Error HTTP ' . $code;
+	}
+
+	/**
 	 * Compara la versión local con la versión más reciente (tags) en GitHub.
 	 */
 	public function get_latest_github_version() {
@@ -504,10 +583,17 @@ class WPDS_Admin_Settings {
 			),
 		);
 
+		// Adjuntar token si está guardado
+		$options = get_option( 'wpds_settings' );
+		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
+		if ( ! empty( $token ) ) {
+			$args['headers']['Authorization'] = 'token ' . $token;
+		}
+
 		$response = wp_remote_get( $url, $args );
 
 		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
-			return false; // Error o límite de API excedido
+			return false; // Error o repositorio privado inaccesible sin token
 		}
 
 		$body = wp_remote_retrieve_body( $response );
@@ -529,7 +615,7 @@ class WPDS_Admin_Settings {
 		}
 
 		if ( '0.0.0' !== $highest_version ) {
-			set_transient( 'wpds_latest_github_version', $highest_version, 6 * HOUR_IN_SECONDS ); // Caché por 6 horas
+			set_transient( 'wpds_latest_github_version', $highest_version, 6 * HOUR_IN_SECONDS );
 			return $highest_version;
 		}
 
@@ -555,12 +641,28 @@ class WPDS_Admin_Settings {
 			$response->plugin      = $plugin_slug;
 			$response->new_version = $latest_version;
 			$response->url         = 'https://github.com/19webs/wp-document-signer-pro';
-			$response->package     = 'https://github.com/19webs/wp-document-signer-pro/archive/refs/tags/v' . $latest_version . '.zip';
+			// Descargar directamente desde la API oficial de GitHub que admite token de autorización
+			$response->package     = 'https://api.github.com/repos/19webs/wp-document-signer-pro/zipball/v' . $latest_version;
 
 			$transient->response[ $plugin_slug ] = $response;
 		}
 
 		return $transient;
+	}
+
+	/**
+	 * Intercepta las solicitudes HTTP nativas de WordPress de descarga de plugins.
+	 * Inyecta las cabeceras de autorización con el token PAT de GitHub si el destino es la API de GitHub.
+	 */
+	public function add_github_token_to_download( $args, $url ) {
+		if ( strpos( $url, 'api.github.com/repos/19webs/wp-document-signer-pro/zipball' ) !== false || strpos( $url, 'codeload.github.com/19webs/wp-document-signer-pro' ) !== false ) {
+			$options = get_option( 'wpds_settings' );
+			$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
+			if ( ! empty( $token ) ) {
+				$args['headers']['Authorization'] = 'token ' . $token;
+			}
+		}
+		return $args;
 	}
 
 	/**
@@ -580,13 +682,20 @@ class WPDS_Admin_Settings {
 		// Comprobar versión de GitHub
 		$latest_version = $this->get_latest_github_version();
 		$current_version = WPDS_VERSION;
+		$connection_diagnostic = $this->get_github_connection_status();
 		?>
 		<div class="wrap wpds-admin-wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
+			<!-- Diagnóstico del estado de conexión con GitHub -->
+			<div style="margin: 15px 0 10px 0; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+				<span><strong>Estado de GitHub:</strong></span>
+				<span><?php echo esc_html( $connection_diagnostic ); ?></span>
+			</div>
+
 			<!-- Indicación de Versión y Actualizaciones -->
 			<?php if ( $latest_version && version_compare( $latest_version, $current_version, '>' ) ) : ?>
-				<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block;">
+				<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block; max-width: 830px;">
 					<p style="margin: 0; font-size: 14px; font-weight: 600; color: #7a5f00; line-height: 1.5;">
 						🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente en GitHub es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
 						<br/>
@@ -595,7 +704,7 @@ class WPDS_Admin_Settings {
 					</p>
 				</div>
 			<?php else : ?>
-				<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+				<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
 					<span style="color: #22c55e; font-size: 14px;">●</span> 
 					<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
 				</div>
