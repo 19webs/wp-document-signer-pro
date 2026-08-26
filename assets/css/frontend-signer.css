@@ -1,0 +1,741 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+/* Reset e Aislamiento del Contenedor de Firmas */
+.wpds-signer-container {
+	font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+	max-width: 840px !important;
+	margin: 2rem auto !important;
+	background: #ffffff !important;
+	border-radius: 24px !important;
+	box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08) !important;
+	border: 1px solid rgba(226, 232, 240, 0.8) !important;
+	overflow: hidden !important;
+	box-sizing: border-box !important;
+	text-align: left !important;
+}
+
+.wpds-signer-container *,
+.wpds-signer-container *::before,
+.wpds-signer-container *::after {
+	box-sizing: border-box !important;
+}
+
+.wpds-signing-form {
+	padding: 2.5rem !important;
+	background: #ffffff !important;
+	margin: 0 !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+/* Indicador de Progreso de Pasos (Header Wizard) */
+.wpds-signer-container .wpds-steps-header {
+	background-color: #f8fafc !important;
+	border-bottom: 1px solid #e2e8f0 !important;
+	padding: 1.5rem 2.5rem !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	margin: 0 !important;
+}
+
+.wpds-signer-container .wpds-step-indicator {
+	display: flex !important;
+	align-items: center !important;
+	gap: 10px !important;
+	color: #64748b !important;
+	font-weight: 500 !important;
+	transition: all 0.3s ease !important;
+	background: none !important;
+	border: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.wpds-signer-container .wpds-step-indicator.active {
+	color: #4f46e5 !important;
+	font-weight: 700 !important;
+}
+
+.wpds-signer-container .wpds-step-num {
+	width: 28px !important;
+	height: 28px !important;
+	border-radius: 50% !important;
+	background: #ffffff !important;
+	border: 2px solid #cbd5e1 !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	font-size: 0.9rem !important;
+	font-weight: bold !important;
+	transition: all 0.3s ease !important;
+	color: #64748b !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.wpds-signer-container .wpds-step-indicator.active .wpds-step-num {
+	background: #4f46e5 !important;
+	color: #ffffff !important;
+	border-color: #4f46e5 !important;
+	box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15) !important;
+}
+
+.wpds-signer-container .wpds-step-line {
+	flex: 1 !important;
+	max-width: 120px !important;
+	height: 2px !important;
+	background: #e2e8f0 !important;
+	margin: 0 20px !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container .wpds-step-text {
+	font-size: 0.95rem !important;
+}
+
+/* Títulos y Subtítulos Reset */
+.wpds-signer-container h2.wpds-section-title {
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 1.6rem !important;
+	font-weight: 800 !important;
+	color: #0f172a !important;
+	text-align: center !important;
+	margin: 0 0 0.5rem 0 !important;
+	padding: 0 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.5px !important;
+	line-height: 1.3 !important;
+	border: none !important;
+}
+
+.wpds-signer-container p.wpds-section-subtitle {
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 1.05rem !important;
+	color: #64748b !important;
+	text-align: center !important;
+	margin: 0 0 2rem 0 !important;
+	padding: 0 !important;
+	font-style: italic !important;
+	line-height: 1.4 !important;
+}
+
+.wpds-signer-container h3.wpds-section-sub-title {
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 1.2rem !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+	margin-top: 1.5rem !important;
+	margin-bottom: 0.8rem !important;
+	padding: 0 !important;
+	line-height: 1.3 !important;
+}
+
+/* Grid de Identificación (Establecimiento vs Cliente) */
+.wpds-signer-container .wpds-identification-grid {
+	display: grid !important;
+	grid-template-columns: 1fr 1fr !important;
+	gap: 1.5rem !important;
+	margin-bottom: 2rem !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container .wpds-id-card {
+	background: #f8fafc !important;
+	border: 1px solid #e2e8f0 !important;
+	border-radius: 16px !important;
+	padding: 1.5rem !important;
+	margin: 0 !important;
+}
+
+.wpds-signer-container h4.wpds-card-title {
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 0.85rem !important;
+	font-weight: 700 !important;
+	color: #475569 !important;
+	margin: 0 0 1rem 0 !important;
+	padding: 0 0 8px 0 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 1px !important;
+	border-bottom: 1px dashed #cbd5e1 !important;
+}
+
+.wpds-signer-container .wpds-establishment-card p {
+	font-size: 0.95rem !important;
+	color: #334155 !important;
+	margin: 0 0 6px 0 !important;
+	line-height: 1.45 !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container .wpds-establishment-card p strong {
+	color: #0f172a !important;
+	font-weight: 600 !important;
+}
+
+.wpds-signer-container .wpds-client-card {
+	background: #ffffff !important;
+	border-color: rgba(99, 102, 241, 0.15) !important;
+	box-shadow: 0 4px 12px rgba(99, 102, 241, 0.02) !important;
+}
+
+.wpds-signer-container .wpds-input-group {
+	margin-bottom: 1rem !important;
+	display: flex !important;
+	flex-direction: column !important;
+}
+
+.wpds-signer-container .wpds-input-group label {
+	display: inline-block !important;
+	font-weight: 600 !important;
+	font-size: 0.88rem !important;
+	color: #1e293b !important;
+	margin-bottom: 0.4rem !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container input.wpds-input {
+	font-family: inherit !important;
+	width: 100% !important;
+	padding: 0.65rem 0.9rem !important;
+	font-size: 0.95rem !important;
+	border-radius: 10px !important;
+	border: 1px solid #cbd5e1 !important;
+	background-color: #f8fafc !important;
+	color: #0f172a !important;
+	outline: none !important;
+	box-sizing: border-box !important;
+	transition: all 0.2s ease !important;
+	height: auto !important;
+	box-shadow: none !important;
+}
+
+.wpds-signer-container input.wpds-input:focus {
+	border-color: #6366f1 !important;
+	background-color: #ffffff !important;
+	box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Declaraciones e Introducción */
+.wpds-signer-container p.wpds-intro-declaration {
+	background-color: #e0e7ff !important;
+	color: #312e81 !important;
+	padding: 1.2rem !important;
+	border-radius: 14px !important;
+	font-size: 0.95rem !important;
+	line-height: 1.5 !important;
+	margin: 0 0 2rem 0 !important;
+	border-left: 5px solid #4f46e5 !important;
+	font-style: normal !important;
+}
+
+/* Bloque de Cláusulas (Contenido de WP/Elementor) */
+.wpds-signer-container .wpds-document-content-block {
+	border: 1px solid #e2e8f0 !important;
+	border-radius: 16px !important;
+	padding: 2rem !important;
+	max-height: 400px !important;
+	overflow-y: auto !important;
+	margin-bottom: 2rem !important;
+	background: #ffffff !important;
+	font-size: 1rem !important;
+	line-height: 1.65 !important;
+	color: #334155 !important;
+	box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Reset de etiquetas HTML dentro del bloque de cláusulas por si el tema las agranda */
+.wpds-signer-container .wpds-document-content-block h3 {
+	font-size: 1.15rem !important;
+	font-weight: bold !important;
+	color: #0f172a !important;
+	margin: 1.5rem 0 0.5rem 0 !important;
+	border: none !important;
+	padding: 0 !important;
+}
+.wpds-signer-container .wpds-document-content-block p {
+	font-size: 0.95rem !important;
+	margin: 0 0 10px 0 !important;
+	line-height: 1.6 !important;
+}
+.wpds-signer-container .wpds-document-content-block ul {
+	margin: 0 0 10px 0 !important;
+	padding-left: 20px !important;
+	list-style-type: disc !important;
+}
+.wpds-signer-container .wpds-document-content-block li {
+	font-size: 0.95rem !important;
+	margin-bottom: 5px !important;
+	line-height: 1.5 !important;
+}
+
+/* Personalizar scrollbar */
+.wpds-signer-container .wpds-document-content-block::-webkit-scrollbar {
+	width: 6px !important;
+}
+.wpds-signer-container .wpds-document-content-block::-webkit-scrollbar-track {
+	background: #f1f5f9 !important;
+}
+.wpds-signer-container .wpds-document-content-block::-webkit-scrollbar-thumb {
+	background: #cbd5e1 !important;
+	border-radius: 10px !important;
+}
+
+/* Firmas */
+.wpds-signer-container .wpds-signatures-flex {
+	display: grid !important;
+	grid-template-columns: 1fr 1fr !important;
+	gap: 2rem !important;
+	margin-bottom: 2rem !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container .wpds-signature-box {
+	display: flex !important;
+	flex-direction: column !important;
+}
+
+.wpds-signer-container label.wpds-sig-label {
+	font-weight: 700 !important;
+	font-size: 0.88rem !important;
+	color: #334155 !important;
+	margin-bottom: 0.6rem !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.5px !important;
+}
+
+.wpds-signer-container .wpds-canvas-container {
+	position: relative !important;
+	width: 100% !important;
+	height: 160px !important;
+	background-color: #f8fafc !important;
+	border: 2px dashed rgba(99, 102, 241, 0.2) !important;
+	border-radius: 14px !important;
+	overflow: hidden !important;
+	box-sizing: border-box !important;
+	transition: all 0.25s ease !important;
+}
+
+.wpds-signer-container .wpds-canvas-container:hover {
+	border-color: #6366f1 !important;
+	background-color: #f1f5f9 !important;
+}
+
+.wpds-signer-container .wpds-signature-canvas {
+	width: 100% !important;
+	height: 100% !important;
+	display: block !important;
+	cursor: crosshair !important;
+	touch-action: none !important;
+}
+
+.wpds-signer-container .wpds-clear-canvas {
+	position: absolute !important;
+	bottom: 8px !important;
+	right: 8px !important;
+	background: #ffffff !important;
+	color: #64748b !important;
+	border: 1px solid #e2e8f0 !important;
+	padding: 4px 10px !important;
+	font-size: 0.8rem !important;
+	font-weight: 600 !important;
+	border-radius: 6px !important;
+	cursor: pointer !important;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+	transition: all 0.2s ease !important;
+	z-index: 10 !important;
+	width: auto !important;
+	height: auto !important;
+	line-height: 1.2 !important;
+}
+
+.wpds-signer-container .wpds-clear-canvas:hover {
+	background: #f87171 !important;
+	color: #ffffff !important;
+	border-color: #f87171 !important;
+}
+
+/* Sello del Establecimiento */
+.wpds-signer-container .wpds-est-stamp {
+	border: 2px solid #94a3b8 !important;
+	border-radius: 14px !important;
+	padding: 1.5rem !important;
+	text-align: center !important;
+	background-color: #f8fafc !important;
+	position: relative !important;
+	overflow: hidden !important;
+	margin: 0 !important;
+}
+
+.wpds-signer-container .wpds-est-stamp-city {
+	font-size: 0.8rem !important;
+	color: #64748b !important;
+	margin-bottom: 4px !important;
+}
+
+.wpds-signer-container .wpds-est-stamp-name {
+	font-size: 1.05rem !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+}
+
+.wpds-signer-container .wpds-est-stamp-nif,
+.wpds-signer-container .wpds-est-stamp-com {
+	font-size: 0.85rem !important;
+	color: #475569 !important;
+}
+
+.wpds-signer-container .wpds-est-stamp-seal {
+	display: inline-block !important;
+	margin-top: 10px !important;
+	font-size: 0.72rem !important;
+	font-weight: bold !important;
+	color: #16a34a !important;
+	border: 1.5px solid #16a34a !important;
+	padding: 2px 8px !important;
+	border-radius: 4px !important;
+	text-transform: uppercase !important;
+	letter-spacing: 1px !important;
+	transform: rotate(-3deg) !important;
+	background: #f0fdf4 !important;
+}
+
+/* PÁGINA 2: ESTRUCTURA RGPD */
+.wpds-signer-container .wpds-rgpd-table-wrapper {
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 14px !important;
+	overflow: hidden !important;
+	margin-bottom: 2rem !important;
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02) !important;
+}
+
+.wpds-signer-container .wpds-rgpd-table {
+	width: 100% !important;
+	border-collapse: collapse !important;
+	margin: 0 !important;
+	border: none !important;
+}
+
+.wpds-signer-container .wpds-rgpd-table td {
+	border: none !important;
+	border-bottom: 1px solid #cbd5e1 !important;
+	padding: 12px 16px !important;
+	font-size: 0.9rem !important;
+	color: #334155 !important;
+	line-height: 1.45 !important;
+	text-align: left !important;
+}
+
+.wpds-signer-container .wpds-rgpd-table tr:last-child td {
+	border-bottom: none !important;
+}
+
+.wpds-signer-container .wpds-rgpd-header-cell {
+	font-weight: bold !important;
+	background-color: #f8fafc !important;
+	color: #1e293b !important;
+	width: 25% !important;
+	border-right: 1px solid #cbd5e1 !important;
+}
+
+/* Consentimiento Imagen */
+.wpds-signer-container .wpds-consent-interactive-block {
+	display: grid !important;
+	grid-template-columns: 200px 1fr !important;
+	gap: 1.5rem !important;
+	margin-bottom: 2rem !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container .wpds-consent-options-selector {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 12px !important;
+	justify-content: center !important;
+}
+
+.wpds-signer-container .wpds-consent-btn {
+	background: #ffffff !important;
+	border: 2px solid #cbd5e1 !important;
+	border-radius: 12px !important;
+	padding: 14px !important;
+	font-weight: bold !important;
+	color: #475569 !important;
+	font-size: 0.95rem !important;
+	cursor: pointer !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 10px !important;
+	transition: all 0.25s ease !important;
+	width: 100% !important;
+	height: auto !important;
+	line-height: 1.2 !important;
+}
+
+.wpds-signer-container .wpds-consent-check {
+	width: 16px !important;
+	height: 16px !important;
+	border-radius: 50% !important;
+	border: 2px solid #cbd5e1 !important;
+	display: inline-block !important;
+	position: relative !important;
+}
+
+.wpds-signer-container .wpds-consent-btn:hover {
+	border-color: #94a3b8 !important;
+	background: #f8fafc !important;
+}
+
+.wpds-signer-container .wpds-consent-btn[data-value="1"].active {
+	border-color: #10b981 !important;
+	background-color: #ecfdf5 !important;
+	color: #065f46 !important;
+}
+
+.wpds-signer-container .wpds-consent-btn[data-value="1"].active .wpds-consent-check {
+	border-color: #10b981 !important;
+	background-color: #10b981 !important;
+}
+
+.wpds-signer-container .wpds-consent-btn[data-value="0"].active {
+	border-color: #ef4444 !important;
+	background-color: #fef2f2 !important;
+	color: #991b1b !important;
+}
+
+.wpds-signer-container .wpds-consent-btn[data-value="0"].active .wpds-consent-check {
+	border-color: #ef4444 !important;
+	background-color: #ef4444 !important;
+}
+
+.wpds-signer-container .wpds-consent-check::after {
+	content: "" !important;
+	position: absolute !important;
+	top: 3px !important;
+	left: 3px !important;
+	width: 6px !important;
+	height: 6px !important;
+	border-radius: 50% !important;
+	background: #ffffff !important;
+	display: none !important;
+}
+
+.wpds-signer-container .wpds-consent-btn.active .wpds-consent-check::after {
+	display: block !important;
+}
+
+.wpds-signer-container .wpds-consent-statement-card {
+	background: #f8fafc !important;
+	border: 1px solid #e2e8f0 !important;
+	border-radius: 16px !important;
+	padding: 1.25rem 1.5rem !important;
+}
+
+.wpds-signer-container .wpds-consent-statement-card p {
+	font-size: 0.88rem !important;
+	color: #475569 !important;
+	line-height: 1.45 !important;
+	margin: 0 0 8px 0 !important;
+	text-align: justify !important;
+	padding: 0 !important;
+}
+
+.wpds-signer-container .wpds-consent-statement-card p:last-child {
+	margin-bottom: 0 !important;
+}
+
+/* Fila de Navegación */
+.wpds-signer-container .wpds-navigation-row {
+	display: flex !important;
+	justify-content: flex-end !important;
+	margin-top: 2rem !important;
+	border-top: 1px solid #e2e8f0 !important;
+	padding: 1.5rem 0 0 0 !important;
+}
+
+.wpds-signer-container .wpds-navigation-row.wpds-two-buttons {
+	justify-content: space-between !important;
+}
+
+.wpds-signer-container .wpds-nav-button {
+	font-family: inherit !important;
+	background: #f1f5f9 !important;
+	color: #334155 !important;
+	border: 1px solid #cbd5e1 !important;
+	padding: 0.9rem 1.8rem !important;
+	font-size: 1rem !important;
+	font-weight: 600 !important;
+	border-radius: 12px !important;
+	cursor: pointer !important;
+	transition: all 0.2s ease !important;
+	display: flex !important;
+	align-items: center !important;
+	width: auto !important;
+	height: auto !important;
+	line-height: 1.2 !important;
+}
+
+.wpds-signer-container .wpds-nav-button:hover {
+	background: #e2e8f0 !important;
+	color: #0f172a !important;
+}
+
+.wpds-signer-container .wpds-button-next {
+	background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+	color: #ffffff !important;
+	border: none !important;
+	box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2) !important;
+}
+
+.wpds-signer-container .wpds-button-next:hover {
+	color: #ffffff !important;
+	background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%) !important;
+	box-shadow: 0 6px 14px rgba(79, 70, 229, 0.3) !important;
+}
+
+.wpds-signer-container .wpds-submit-button {
+	font-family: inherit !important;
+	background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+	color: #ffffff !important;
+	border: none !important;
+	padding: 0.9rem 1.8rem !important;
+	font-size: 1rem !important;
+	font-weight: 600 !important;
+	border-radius: 12px !important;
+	cursor: pointer !important;
+	box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2) !important;
+	transition: all 0.2s ease !important;
+	display: flex !important;
+	align-items: center !important;
+	width: auto !important;
+	height: auto !important;
+	line-height: 1.2 !important;
+}
+
+.wpds-signer-container .wpds-submit-button:hover {
+	transform: translateY(-1px) !important;
+	box-shadow: 0 6px 14px rgba(16, 185, 129, 0.3) !important;
+}
+
+.wpds-signer-container .wpds-submit-button:disabled {
+	opacity: 0.6 !important;
+	cursor: not-allowed !important;
+	transform: none !important;
+	box-shadow: none !important;
+}
+
+/* Modales */
+.wpds-modal {
+	position: fixed !important;
+	top: 0 !important;
+	left: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	background-color: rgba(15, 23, 42, 0.6) !important;
+	backdrop-filter: blur(8px) !important;
+	-webkit-backdrop-filter: blur(8px) !important;
+	display: none !important; /* Oculto por defecto */
+	align-items: center !important;
+	justify-content: center !important;
+	z-index: 99999 !important;
+}
+
+.wpds-modal.wpds-active {
+	display: flex !important; /* Visible cuando está activo */
+}
+
+.wpds-modal-content {
+	background: #ffffff !important;
+	padding: 3rem !important;
+	border-radius: 24px !important;
+	text-align: center !important;
+	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+	max-width: 420px !important;
+	width: 90% !important;
+	box-sizing: border-box !important;
+}
+
+.wpds-modal-content h3 {
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+	margin: 0 0 0.75rem 0 !important;
+	padding: 0 !important;
+	line-height: 1.3 !important;
+}
+
+.wpds-modal-content p {
+	font-size: 0.95rem !important;
+	color: #64748b !important;
+	margin: 0 0 1.5rem 0 !important;
+	line-height: 1.6 !important;
+	padding: 0 !important;
+}
+
+.wpds-modal-btn {
+	background-color: #f1f5f9 !important;
+	color: #334155 !important;
+	border: none !important;
+	padding: 0.75rem 2rem !important;
+	font-size: 0.95rem !important;
+	font-weight: 600 !important;
+	border-radius: 10px !important;
+	cursor: pointer !important;
+	width: 100% !important;
+}
+
+/* RESPONSIVE ADAPTABILITY */
+@media (max-width: 768px) {
+	.wpds-signing-form {
+		padding: 1.5rem !important;
+	}
+	.wpds-signer-container .wpds-steps-header {
+		padding: 1.25rem 1.5rem !important;
+	}
+	.wpds-signer-container .wpds-identification-grid {
+		grid-template-columns: 1fr !important;
+		gap: 1.25rem !important;
+	}
+	.wpds-signer-container .wpds-signatures-flex {
+		grid-template-columns: 1fr !important;
+		gap: 1.5rem !important;
+	}
+	.wpds-signer-container .wpds-consent-interactive-block {
+		grid-template-columns: 1fr !important;
+		gap: 1.25rem !important;
+	}
+	.wpds-signer-container .wpds-consent-options-selector {
+		flex-direction: row !important;
+	}
+	.wpds-signer-container .wpds-consent-btn {
+		flex: 1 !important;
+		justify-content: center !important;
+	}
+}
+
+/* Forzar reinicio de espaciado y transformaciones de texto en títulos para curar herencias del tema o Elementor */
+.wpds-signer-container h1,
+.wpds-signer-container h2,
+.wpds-signer-container h3,
+.wpds-signer-container h4,
+.wpds-signer-container h5,
+.wpds-signer-container h6,
+.wpds-signer-container .wpds-document-content-block h3,
+.wpds-signer-container .wpds-document-content-block h2 {
+	letter-spacing: normal !important;
+	text-transform: none !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-weight: 700 !important;
+}
+
+/* Forzar que los títulos de sección del plugin sí sigan viéndose en mayúsculas moderadas */
+.wpds-signer-container h2.wpds-section-title {
+	text-transform: uppercase !important;
+	letter-spacing: 0.5px !important;
+}
+
+.wpds-signer-container h4.wpds-card-title {
+	text-transform: uppercase !important;
+	letter-spacing: 1px !important;
+}

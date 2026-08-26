@@ -1,0 +1,19 @@
+# Archivos del sistema operativo y basura
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.zip
+*.log
+
+# Carpetas de editores e IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Copias locales o temporales de PDFs
+firmas-pdf/
+*.pdf
+scratch/
+temp/
