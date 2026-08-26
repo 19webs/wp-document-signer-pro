@@ -36,6 +36,9 @@ class WPDS_Admin_Settings {
 		add_action( 'admin_init', array( $this, 'handle_pdf_view' ) );
 		add_action( 'admin_init', array( $this, 'handle_file_delete' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		
+		// Filtro nativo de WordPress para inyectar actualizaciones automáticas desde GitHub
+		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_plugin_update' ) );
 	}
 
 	/**
@@ -415,6 +418,83 @@ class WPDS_Admin_Settings {
 	}
 
 	/**
+	 * Compara la versión local con la versión más reciente (tags) en GitHub.
+	 */
+	public function get_latest_github_version() {
+		$latest_version = get_transient( 'wpds_latest_github_version' );
+		if ( false !== $latest_version ) {
+			return $latest_version;
+		}
+
+		$url = 'https://api.github.com/repos/19webs/wp-document-signer-pro/tags';
+		$args = array(
+			'timeout'    => 5,
+			'headers'    => array(
+				'Accept'     => 'application/vnd.github.v3+json',
+				'User-Agent' => '19webs-Updater/' . WPDS_VERSION,
+			),
+		);
+
+		$response = wp_remote_get( $url, $args );
+
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+			return false; // Error o límite de API excedido
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		$tags = json_decode( $body, true );
+
+		if ( ! is_array( $tags ) || empty( $tags ) ) {
+			return false;
+		}
+
+		// Encontrar la versión de tag más alta
+		$highest_version = '0.0.0';
+		foreach ( $tags as $tag ) {
+			if ( isset( $tag['name'] ) ) {
+				$tag_ver = ltrim( $tag['name'], 'v' );
+				if ( version_compare( $tag_ver, $highest_version, '>' ) ) {
+					$highest_version = $tag_ver;
+				}
+			}
+		}
+
+		if ( '0.0.0' !== $highest_version ) {
+			set_transient( 'wpds_latest_github_version', $highest_version, 6 * HOUR_IN_SECONDS ); // Caché por 6 horas
+			return $highest_version;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Inyecta dinámicamente notificaciones de actualización nativa en WordPress desde GitHub.
+	 */
+	public function check_for_plugin_update( $transient ) {
+		if ( empty( $transient->checked ) ) {
+			return $transient;
+		}
+
+		$latest_version = $this->get_latest_github_version();
+		$current_version = WPDS_VERSION;
+
+		if ( $latest_version && version_compare( $latest_version, $current_version, '>' ) ) {
+			$plugin_slug = 'wp-document-signer-pro/wp-document-signer.php';
+			
+			$response = new stdClass();
+			$response->slug        = 'wp-document-signer-pro';
+			$response->plugin      = $plugin_slug;
+			$response->new_version = $latest_version;
+			$response->url         = 'https://github.com/19webs/wp-document-signer-pro';
+			$response->package     = 'https://github.com/19webs/wp-document-signer-pro/archive/refs/tags/v' . $latest_version . '.zip';
+
+			$transient->response[ $plugin_slug ] = $response;
+		}
+
+		return $transient;
+	}
+
+	/**
 	 * Renderizar la página de opciones del panel (Ajustes Globales - Ahora de ancho completo).
 	 */
 	public function render_settings_page() {
@@ -427,11 +507,32 @@ class WPDS_Admin_Settings {
 		}
 
 		settings_errors( 'wpds_messages' );
+
+		// Comprobar versión de GitHub
+		$latest_version = $this->get_latest_github_version();
+		$current_version = WPDS_VERSION;
 		?>
 		<div class="wrap wpds-admin-wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
+			<!-- Indicación de Versión y Actualizaciones -->
+			<?php if ( $latest_version && version_compare( $latest_version, $current_version, '>' ) ) : ?>
+				<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block;">
+					<p style="margin: 0; font-size: 14px; font-weight: 600; color: #7a5f00; line-height: 1.5;">
+						🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente en GitHub es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
+						<br/>
+						<span style="font-weight: normal; font-size: 12.5px; color: #66521a;"><?php esc_html_e( 'WordPress mostrará un aviso de actualización nativo en la sección de Plugins. También puedes descargar o gestionar el código directamente.', 'wp-doc-signer' ); ?></span>
+						<a href="https://github.com/19webs/wp-document-signer-pro" target="_blank" class="button button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Ver en GitHub', 'wp-doc-signer' ); ?></a>
+					</p>
+				</div>
+			<?php else : ?>
+				<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+					<span style="color: #22c55e; font-size: 14px;">●</span> 
+					<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
+				</div>
+			<?php endif; ?>
 			
-			<div class="wpds-settings-layout" style="max-width: 860px; margin-top: 15px; padding: 25px; border-radius: 8px; border: 1px solid #c3c4c7; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+			<div class="wpds-settings-layout" style="max-width: 860px; margin-top: 10px; padding: 25px; border-radius: 8px; border: 1px solid #c3c4c7; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
 				<form action="options.php" method="post">
 					<?php
 					settings_fields( 'wpds_settings_group' );

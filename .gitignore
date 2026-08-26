@@ -17,3 +17,7 @@ firmas-pdf/
 *.pdf
 scratch/
 temp/
+
+# Script de automatización local (no subir a GitHub)
+git-push.bat
+
