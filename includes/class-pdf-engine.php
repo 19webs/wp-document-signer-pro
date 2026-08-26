@@ -107,9 +107,10 @@ class WPDS_PDF_Engine {
 				wp_mkdir_p( $target_dir );
 			}
 
-			// Nombre único
+			// Nombre único que incluye el nombre del cliente para permitir búsquedas funcionales
+			$clean_name  = sanitize_title( $form_data['nombre'] ); // Limpia caracteres especiales y espacios
 			$random_hash = wp_hash( $document_id . '_' . time() . '_' . uniqid( '', true ) );
-			$filename    = sprintf( 'documento_%d_%s.pdf', $document_id, substr( $random_hash, 0, 16 ) );
+			$filename    = sprintf( 'documento_%d_%s_%s.pdf', $document_id, $clean_name, substr( $random_hash, 0, 8 ) );
 			$file_path   = $target_dir . '/' . $filename;
 
 			$pdf_output = $dompdf->output();

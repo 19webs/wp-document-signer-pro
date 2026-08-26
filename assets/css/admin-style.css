@@ -79,3 +79,24 @@
     margin: 0 !important;
     vertical-align: middle !important;
 }
+
+/* Custom Table Nav Flex to avoid clashing with WordPress floated styles */
+.wpds-tablenav-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 15px 0 10px 0;
+    clear: both;
+    width: 100%;
+}
+
+.wpds-tablenav-flex .alignleft {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.wpds-tablenav-flex .tablenav-pages {
+    display: flex;
+    align-items: center;
+}

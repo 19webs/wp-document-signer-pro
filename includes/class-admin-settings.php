@@ -36,6 +36,7 @@ class WPDS_Admin_Settings {
 		add_action( 'admin_init', array( $this, 'handle_pdf_view' ) );
 		add_action( 'admin_init', array( $this, 'handle_file_delete' ) );
 		add_action( 'admin_init', array( $this, 'handle_bulk_actions' ) );
+		add_action( 'admin_init', array( $this, 'handle_force_update_check' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		
 		// Filtro nativo de WordPress para inyectar actualizaciones automáticas desde GitHub
@@ -520,6 +521,21 @@ class WPDS_Admin_Settings {
 	}
 
 	/**
+	 * Forzar la eliminación de la caché de versión de GitHub al solicitarlo.
+	 */
+	public function handle_force_update_check() {
+		if ( isset( $_GET['page'] ) && 'wpds-settings' === $_GET['page'] && isset( $_GET['check_update'] ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+			}
+			delete_site_transient( 'update_plugins' ); // Limpiar transient nativo de actualizaciones de WP
+			delete_transient( 'wpds_latest_github_version' ); // Borrar caché local del plugin
+			wp_redirect( remove_query_arg( 'check_update' ) );
+			exit;
+		}
+	}
+
+	/**
 	 * Diagnostica la conexión a GitHub y retorna el estado o errores específicos.
 	 */
 	public function get_github_connection_status() {
@@ -701,12 +717,14 @@ class WPDS_Admin_Settings {
 						<br/>
 						<span style="font-weight: normal; font-size: 12.5px; color: #66521a;"><?php esc_html_e( 'WordPress mostrará un aviso de actualización nativo en la sección de Plugins. También puedes descargar o gestionar el código directamente.', 'wp-doc-signer' ); ?></span>
 						<a href="https://github.com/19webs/wp-document-signer-pro" target="_blank" class="button button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Ver en GitHub', 'wp-doc-signer' ); ?></a>
+						<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=wp_documento&page=wpds-settings&check_update=1' ) ); ?>" class="button button-secondary button-small" style="margin-left: 10px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></a>
 					</p>
 				</div>
 			<?php else : ?>
 				<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
 					<span style="color: #22c55e; font-size: 14px;">●</span> 
 					<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
+					<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=wp_documento&page=wpds-settings&check_update=1' ) ); ?>" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></a>
 				</div>
 			<?php endif; ?>
 			
@@ -801,8 +819,8 @@ class WPDS_Admin_Settings {
 			<form method="post" action="">
 				<?php wp_nonce_field( 'wpds_bulk_action', 'wpds_bulk_action_nonce' ); ?>
 
-				<!-- Barra de navegación y acciones de tabla -->
-				<div class="tablenav top" style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0 10px 0; clear: left;">
+				<!-- Barra de navegación y acciones de tabla (Clase flex propia para evitar colisiones CSS de WordPress) -->
+				<div class="wpds-tablenav-flex" style="clear: both;">
 					<div class="alignleft actions bulkactions" style="margin: 0; display: flex; gap: 6px; align-items: center;">
 						<select name="bulk_action" id="bulk-action-selector-top" style="height: 30px; line-height: 28px; padding: 2px 24px 2px 8px;">
 							<option value="-1"><?php esc_html_e( 'Acciones en lote', 'wp-doc-signer' ); ?></option>
@@ -918,7 +936,7 @@ class WPDS_Admin_Settings {
 
 				<!-- Paginación inferior -->
 				<?php if ( $total_pages > 1 ) : ?>
-					<div class="tablenav bottom" style="display: flex; justify-content: flex-end; margin-top: 15px;">
+					<div class="wpds-tablenav-flex" style="justify-content: flex-end; margin-top: 15px;">
 						<div class="tablenav-pages">
 							<?php
 							echo paginate_links( array(
