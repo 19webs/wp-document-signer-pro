@@ -73,6 +73,7 @@ class WPDS_PDF_Engine {
 			'address'   => get_post_meta( $document_id, '_wpds_est_address', true ),
 			'email'     => get_post_meta( $document_id, '_wpds_est_email', true ),
 			'phone'     => get_post_meta( $document_id, '_wpds_est_phone', true ),
+			'rgpd_customized'    => get_post_meta( $document_id, '_wpds_rgpd_customized', true ),
 			'rgpd_finalidad'     => get_post_meta( $document_id, '_wpds_rgpd_finalidad', true ),
 			'rgpd_legitimacion'  => get_post_meta( $document_id, '_wpds_rgpd_legitimacion', true ),
 			'rgpd_destinatarios' => get_post_meta( $document_id, '_wpds_rgpd_destinatarios', true ),
@@ -180,19 +181,27 @@ class WPDS_PDF_Engine {
 		$meta_consentimiento_declaracion_titulo = isset( $est_data['consentimiento_declaracion_titulo'] ) ? $est_data['consentimiento_declaracion_titulo'] : '';
 		$meta_consentimiento_declaracion_texto  = isset( $est_data['consentimiento_declaracion_texto'] ) ? $est_data['consentimiento_declaracion_texto'] : '';
 
-		$rgpd_finalidad = ! empty( $meta_finalidad ) ? $meta_finalidad : __( 'Gestionar la reserva y la relación precontractual/contractual, prestar y documentar el servicio, gestionar pagos y cumplir obligaciones legales, así como atender o defender reclamaciones. Bases: ejecución del contrato, medidas precontractuales, obligaciones legales y, cuando proceda, interés legítimo para la defensa de reclamaciones.', 'wp-doc-signer' );
+		$customized = isset( $est_data['rgpd_customized'] ) ? $est_data['rgpd_customized'] : '';
 
-		$rgpd_legitimacion = ! empty( $meta_legitimacion ) ? $meta_legitimacion : __( 'Ejecución de un contrato, cumplimiento de obligaciones legales e interés legítimo.', 'wp-doc-signer' );
-
-		$rgpd_destinatarios = ! empty( $meta_destinatarios ) ? $meta_destinatarios : __( 'Proveedores necesarios para la gestión del servicio y Administraciones, juzgados, tribunales, aseguradoras o asesores cuando exista obligación legal o sea necesario para gestionar o defender reclamaciones.', 'wp-doc-signer' );
-
-		$rgpd_conservacion = ! empty( $meta_conservacion ) ? $meta_conservacion : __( 'Durante la relación con la persona cliente y, posteriormente, durante los plazos legales aplicables para atender obligaciones y posibles responsabilidades.', 'wp-doc-signer' );
-
-		$rgpd_derechos = ! empty( $meta_derechos ) ? $meta_derechos : sprintf( __( 'Acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, mediante el email indicado (%s). También puede reclamar ante la Agencia Española de Protección de Datos.', 'wp-doc-signer' ), $est_email );
-
-		$rgpd_procedencia = ! empty( $meta_procedencia ) ? $meta_procedencia : __( 'La propia persona interesada o su representante legal.', 'wp-doc-signer' );
-
-		$rgpd_adicional = ! empty( $meta_adicional ) ? $meta_adicional : __( 'Puede consultar la información detallada sobre protección de datos en nuestra oficina o solicitándola por email.', 'wp-doc-signer' );
+		if ( ! $customized ) {
+			// Si nunca se ha guardado, usar los valores predeterminados
+			$rgpd_finalidad     = __( 'Gestionar la reserva y la relación precontractual/contractual, prestar y documentar el servicio, gestionar pagos y cumplir obligaciones legales, así como atender o defender reclamaciones. Bases: ejecución del contrato, medidas precontractuales, obligaciones legales y, cuando proceda, interés legítimo para la defensa de reclamaciones.', 'wp-doc-signer' );
+			$rgpd_legitimacion  = __( 'Ejecución de un contrato, cumplimiento de obligaciones legales e interés legítimo.', 'wp-doc-signer' );
+			$rgpd_destinatarios = __( 'Proveedores necesarios para la gestión del servicio y Administraciones, juzgados, tribunales, aseguradoras o asesores cuando exista obligación legal o sea necesario para gestionar o defender reclamaciones.', 'wp-doc-signer' );
+			$rgpd_conservacion  = __( 'Durante la relación con la persona cliente y, posteriormente, durante los plazos legales aplicables para atender obligaciones y posibles responsabilidades.', 'wp-doc-signer' );
+			$rgpd_derechos      = sprintf( __( 'Acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, mediante el email indicado (%s). También puede reclamar ante la Agencia Española de Protección de Datos.', 'wp-doc-signer' ), $est_email );
+			$rgpd_procedencia   = __( 'La propia persona interesada o su representante legal.', 'wp-doc-signer' );
+			$rgpd_adicional     = __( 'Puede consultar la información detallada sobre protección de datos en nuestra oficina o solicitándola por email.', 'wp-doc-signer' );
+		} else {
+			// Si ya se ha guardado, usar el valor real (permitiendo ocultar celdas dejándolas vacías)
+			$rgpd_finalidad     = $meta_finalidad;
+			$rgpd_legitimacion  = $meta_legitimacion;
+			$rgpd_destinatarios = $meta_destinatarios;
+			$rgpd_conservacion  = $meta_conservacion;
+			$rgpd_derechos      = $meta_derechos;
+			$rgpd_procedencia   = $meta_procedencia;
+			$rgpd_adicional     = $meta_adicional;
+		}
 
 		$consentimiento_titulo = ! empty( $meta_consentimiento_titulo ) ? $meta_consentimiento_titulo : __( '7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' );
 		$consentimiento_subtitulo = ! empty( $meta_consentimiento_subtitulo ) ? $meta_consentimiento_subtitulo : __( 'Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' );
@@ -263,6 +272,7 @@ class WPDS_PDF_Engine {
 			'address'   => get_post_meta( $document_id, '_wpds_est_address', true ),
 			'email'     => get_post_meta( $document_id, '_wpds_est_email', true ),
 			'phone'     => get_post_meta( $document_id, '_wpds_est_phone', true ),
+			'rgpd_customized'    => get_post_meta( $document_id, '_wpds_rgpd_customized', true ),
 			'rgpd_finalidad'     => get_post_meta( $document_id, '_wpds_rgpd_finalidad', true ),
 			'rgpd_legitimacion'  => get_post_meta( $document_id, '_wpds_rgpd_legitimacion', true ),
 			'rgpd_destinatarios' => get_post_meta( $document_id, '_wpds_rgpd_destinatarios', true ),

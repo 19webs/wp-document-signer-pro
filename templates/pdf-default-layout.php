@@ -376,34 +376,48 @@
 				<td class="rgpd-label-cell"><?php esc_html_e( 'RESPONSABLE', 'wp-doc-signer' ); ?></td>
 				<td><?php echo sprintf( esc_html__( '%s - NIF %s - %s. %s. Contacto: %s.', 'wp-doc-signer' ), esc_html( $est_titular ), esc_html( $est_nif ), esc_html( $est_comercial ), esc_html( $est_address ), esc_html( $est_email ) ); ?></td>
 			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'FINALIDADES', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_finalidad ); ?></td>
-			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'LEGITIMACIÓN', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_legitimacion ); ?></td>
-			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'DESTINATARIOS', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_destinatarios ); ?></td>
-			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'CONSERVACIÓN', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_conservacion ); ?></td>
-			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'DERECHOS', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_derechos ); ?></td>
-			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'PROCEDENCIA', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_procedencia ); ?></td>
-			</tr>
-			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'INFORMACIÓN ADICIONAL', 'wp-doc-signer' ); ?></td>
-				<td><?php echo esc_html( $rgpd_adicional ); ?></td>
-			</tr>
+			<?php if ( ! empty( $rgpd_finalidad ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'FINALIDADES', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_finalidad ); ?></td>
+				</tr>
+			<?php endif; ?>
+			<?php if ( ! empty( $rgpd_legitimacion ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'LEGITIMACIÓN', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_legitimacion ); ?></td>
+				</tr>
+			<?php endif; ?>
+			<?php if ( ! empty( $rgpd_destinatarios ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'DESTINATARIOS', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_destinatarios ); ?></td>
+				</tr>
+			<?php endif; ?>
+			<?php if ( ! empty( $rgpd_conservacion ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'CONSERVACIÓN', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_conservacion ); ?></td>
+				</tr>
+			<?php endif; ?>
+			<?php if ( ! empty( $rgpd_derechos ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'DERECHOS', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_derechos ); ?></td>
+				</tr>
+			<?php endif; ?>
+			<?php if ( ! empty( $rgpd_procedencia ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'PROCEDENCIA', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_procedencia ); ?></td>
+				</tr>
+			<?php endif; ?>
+			<?php if ( ! empty( $rgpd_adicional ) ) : ?>
+				<tr>
+					<td class="rgpd-label-cell"><?php esc_html_e( 'INFORMACIÓN ADICIONAL', 'wp-doc-signer' ); ?></td>
+					<td><?php echo esc_html( $rgpd_adicional ); ?></td>
+				</tr>
+			<?php endif; ?>
 		</table>
 
 		<h3 class="section-title"><?php echo esc_html( $consentimiento_titulo ); ?></h3>

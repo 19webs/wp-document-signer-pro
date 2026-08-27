@@ -271,12 +271,15 @@ class WPDS_CPT_Documents {
 				update_post_meta( $post_id, '_' . $field, wp_kses_post( $_POST[ $field ] ) );
 			}
 		}
+		update_post_meta( $post_id, '_wpds_rgpd_customized', '1' );
 	}
 
 	/**
 	 * Renderizar metabox para configurar los textos de protección de datos (RGPD) y Consentimiento personalizados.
 	 */
 	public function render_rgpd_custom_metabox( $post ) {
+		$customized    = get_post_meta( $post->ID, '_wpds_rgpd_customized', true );
+
 		$finalidad     = get_post_meta( $post->ID, '_wpds_rgpd_finalidad', true );
 		$legitimacion  = get_post_meta( $post->ID, '_wpds_rgpd_legitimacion', true );
 		$destinatarios = get_post_meta( $post->ID, '_wpds_rgpd_destinatarios', true );
@@ -284,6 +287,17 @@ class WPDS_CPT_Documents {
 		$derechos      = get_post_meta( $post->ID, '_wpds_rgpd_derechos', true );
 		$procedencia   = get_post_meta( $post->ID, '_wpds_rgpd_procedencia', true );
 		$adicional     = get_post_meta( $post->ID, '_wpds_rgpd_adicional', true );
+
+		// Pre-cargar valores por defecto si es una nueva página de edición y nunca se ha guardado
+		if ( ! $customized && 'auto-draft' === $post->post_status ) {
+			$finalidad     = __( 'Gestionar la reserva y la relación precontractual/contractual, prestar y documentar el servicio, gestionar pagos y cumplir obligaciones legales, así como atender o defender reclamaciones. Bases: ejecución del contrato, medidas precontractuales, obligaciones legales y, cuando proceda, interés legítimo para la defensa de reclamaciones.', 'wp-doc-signer' );
+			$legitimacion  = __( 'Ejecución de un contrato, cumplimiento de obligaciones legales e interés legítimo.', 'wp-doc-signer' );
+			$destinatarios = __( 'Proveedores necesarios para la gestión del servicio y Administraciones, juzgados, tribunales, aseguradoras o asesores cuando exista obligación legal o sea necesario para gestionar o defender reclamaciones.', 'wp-doc-signer' );
+			$conservacion  = __( 'Durante la relación con la persona cliente y, posteriormente, durante los plazos legales aplicables para atender obligaciones y posibles responsabilidades.', 'wp-doc-signer' );
+			$derechos      = __( 'Acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, mediante el email indicado.', 'wp-doc-signer' );
+			$procedencia   = __( 'La propia persona interesada o su representante legal.', 'wp-doc-signer' );
+			$adicional     = __( 'Puede consultar la información detallada sobre protección de datos en nuestra oficina o solicitándola por email.', 'wp-doc-signer' );
+		}
 		
 		// Campos de personalización de sección de Consentimiento
 		$consentimiento_titulo             = get_post_meta( $post->ID, '_wpds_consentimiento_titulo', true );
