@@ -74,9 +74,12 @@ class WPDS_PDF_Engine {
 			'email'     => get_post_meta( $document_id, '_wpds_est_email', true ),
 			'phone'     => get_post_meta( $document_id, '_wpds_est_phone', true ),
 			'rgpd_finalidad'     => get_post_meta( $document_id, '_wpds_rgpd_finalidad', true ),
+			'rgpd_legitimacion'  => get_post_meta( $document_id, '_wpds_rgpd_legitimacion', true ),
 			'rgpd_destinatarios' => get_post_meta( $document_id, '_wpds_rgpd_destinatarios', true ),
 			'rgpd_conservacion'  => get_post_meta( $document_id, '_wpds_rgpd_conservacion', true ),
 			'rgpd_derechos'      => get_post_meta( $document_id, '_wpds_rgpd_derechos', true ),
+			'rgpd_procedencia'   => get_post_meta( $document_id, '_wpds_rgpd_procedencia', true ),
+			'rgpd_adicional'     => get_post_meta( $document_id, '_wpds_rgpd_adicional', true ),
 			'consentimiento_titulo' => get_post_meta( $document_id, '_wpds_consentimiento_titulo', true ),
 			'consentimiento_subtitulo' => get_post_meta( $document_id, '_wpds_consentimiento_subtitulo', true ),
 			'consentimiento_texto' => get_post_meta( $document_id, '_wpds_consentimiento_texto', true ),
@@ -164,9 +167,12 @@ class WPDS_PDF_Engine {
 
 		// Asignar variables de textos RGPD y consentimiento con fallbacks para la plantilla
 		$meta_finalidad                         = isset( $est_data['rgpd_finalidad'] ) ? $est_data['rgpd_finalidad'] : '';
+		$meta_legitimacion                      = isset( $est_data['rgpd_legitimacion'] ) ? $est_data['rgpd_legitimacion'] : '';
 		$meta_destinatarios                     = isset( $est_data['rgpd_destinatarios'] ) ? $est_data['rgpd_destinatarios'] : '';
 		$meta_conservacion                      = isset( $est_data['rgpd_conservacion'] ) ? $est_data['rgpd_conservacion'] : '';
 		$meta_derechos                          = isset( $est_data['rgpd_derechos'] ) ? $est_data['rgpd_derechos'] : '';
+		$meta_procedencia                       = isset( $est_data['rgpd_procedencia'] ) ? $est_data['rgpd_procedencia'] : '';
+		$meta_adicional                         = isset( $est_data['rgpd_adicional'] ) ? $est_data['rgpd_adicional'] : '';
 		
 		$meta_consentimiento_titulo             = isset( $est_data['consentimiento_titulo'] ) ? $est_data['consentimiento_titulo'] : '';
 		$meta_consentimiento_subtitulo          = isset( $est_data['consentimiento_subtitulo'] ) ? $est_data['consentimiento_subtitulo'] : '';
@@ -176,11 +182,17 @@ class WPDS_PDF_Engine {
 
 		$rgpd_finalidad = ! empty( $meta_finalidad ) ? $meta_finalidad : __( 'Gestionar la reserva y la relación precontractual/contractual, prestar y documentar el servicio, gestionar pagos y cumplir obligaciones legales, así como atender o defender reclamaciones. Bases: ejecución del contrato, medidas precontractuales, obligaciones legales y, cuando proceda, interés legítimo para la defensa de reclamaciones.', 'wp-doc-signer' );
 
+		$rgpd_legitimacion = ! empty( $meta_legitimacion ) ? $meta_legitimacion : __( 'Ejecución de un contrato, cumplimiento de obligaciones legales e interés legítimo.', 'wp-doc-signer' );
+
 		$rgpd_destinatarios = ! empty( $meta_destinatarios ) ? $meta_destinatarios : __( 'Proveedores necesarios para la gestión del servicio y Administraciones, juzgados, tribunales, aseguradoras o asesores cuando exista obligación legal o sea necesario para gestionar o defender reclamaciones.', 'wp-doc-signer' );
 
 		$rgpd_conservacion = ! empty( $meta_conservacion ) ? $meta_conservacion : __( 'Durante la relación con la persona cliente y, posteriormente, durante los plazos legales aplicables para atender obligaciones y posibles responsabilidades.', 'wp-doc-signer' );
 
 		$rgpd_derechos = ! empty( $meta_derechos ) ? $meta_derechos : sprintf( __( 'Acceso, rectificación, supresión, limitación, oposición y portabilidad cuando proceda, mediante el email indicado (%s). También puede reclamar ante la Agencia Española de Protección de Datos.', 'wp-doc-signer' ), $est_email );
+
+		$rgpd_procedencia = ! empty( $meta_procedencia ) ? $meta_procedencia : __( 'La propia persona interesada o su representante legal.', 'wp-doc-signer' );
+
+		$rgpd_adicional = ! empty( $meta_adicional ) ? $meta_adicional : __( 'Puede consultar la información detallada sobre protección de datos en nuestra oficina o solicitándola por email.', 'wp-doc-signer' );
 
 		$consentimiento_titulo = ! empty( $meta_consentimiento_titulo ) ? $meta_consentimiento_titulo : __( '7. Consentimiento opcional de imagen y voz', 'wp-doc-signer' );
 		$consentimiento_subtitulo = ! empty( $meta_consentimiento_subtitulo ) ? $meta_consentimiento_subtitulo : __( 'Esta autorización es gratuita e independiente y solo se entenderá otorgada si se marca SÍ.', 'wp-doc-signer' );
@@ -233,5 +245,63 @@ class WPDS_PDF_Engine {
 		ob_start();
 		include $template_path;
 		return ob_get_clean();
+	}
+
+	/**
+	 * Genera un PDF de vista previa y lo envía por streaming al navegador sin guardarlo localmente.
+	 */
+	public function generate_preview_pdf( $document_id, $form_data ) {
+		$post = get_post( $document_id );
+		if ( ! $post ) {
+			wp_die( esc_html__( 'Documento no válido.', 'wp-doc-signer' ) );
+		}
+
+		$est_data = array(
+			'titular'   => get_post_meta( $document_id, '_wpds_est_titular', true ),
+			'nif'       => get_post_meta( $document_id, '_wpds_est_nif', true ),
+			'comercial' => get_post_meta( $document_id, '_wpds_est_comercial', true ),
+			'address'   => get_post_meta( $document_id, '_wpds_est_address', true ),
+			'email'     => get_post_meta( $document_id, '_wpds_est_email', true ),
+			'phone'     => get_post_meta( $document_id, '_wpds_est_phone', true ),
+			'rgpd_finalidad'     => get_post_meta( $document_id, '_wpds_rgpd_finalidad', true ),
+			'rgpd_legitimacion'  => get_post_meta( $document_id, '_wpds_rgpd_legitimacion', true ),
+			'rgpd_destinatarios' => get_post_meta( $document_id, '_wpds_rgpd_destinatarios', true ),
+			'rgpd_conservacion'  => get_post_meta( $document_id, '_wpds_rgpd_conservacion', true ),
+			'rgpd_derechos'      => get_post_meta( $document_id, '_wpds_rgpd_derechos', true ),
+			'rgpd_procedencia'   => get_post_meta( $document_id, '_wpds_rgpd_procedencia', true ),
+			'rgpd_adicional'     => get_post_meta( $document_id, '_wpds_rgpd_adicional', true ),
+			'consentimiento_titulo' => get_post_meta( $document_id, '_wpds_consentimiento_titulo', true ),
+			'consentimiento_subtitulo' => get_post_meta( $document_id, '_wpds_consentimiento_subtitulo', true ),
+			'consentimiento_texto' => get_post_meta( $document_id, '_wpds_consentimiento_texto', true ),
+			'consentimiento_declaracion_titulo' => get_post_meta( $document_id, '_wpds_consentimiento_declaracion_titulo', true ),
+			'consentimiento_declaracion_texto' => get_post_meta( $document_id, '_wpds_consentimiento_declaracion_texto', true ),
+		);
+
+		// Fallbacks de datos de establecimiento para la vista previa
+		if ( empty( $est_data['titular'] ) ) { $est_data['titular'] = 'Sara Pérez González'; }
+		if ( empty( $est_data['nif'] ) ) { $est_data['nif'] = '75817812D'; }
+		if ( empty( $est_data['comercial'] ) ) { $est_data['comercial'] = 'Sara Pérez Salón de Autor'; }
+		if ( empty( $est_data['address'] ) ) { $est_data['address'] = 'Calle Ancha, 12, Local 2, 11402 Jerez de la Frontera, Cádiz'; }
+		if ( empty( $est_data['email'] ) ) { $est_data['email'] = 'saraperezpeluqueriadeautor@gmail.com'; }
+		if ( empty( $est_data['phone'] ) ) { $est_data['phone'] = '601 202 303'; }
+
+		$document_body = $this->compile_placeholders( $post->post_content, $form_data );
+		$html = $this->render_template( $post->post_title, $document_body, $form_data, $est_data );
+
+		try {
+			$options = new \Dompdf\Options();
+			$options->set( 'isHtml5ParserEnabled', true );
+			$options->set( 'isRemoteEnabled', true );
+
+			$dompdf = new \Dompdf\Dompdf( $options );
+			$dompdf->loadHtml( $html );
+			$dompdf->setPaper( 'A4', 'portrait' );
+			$dompdf->render();
+
+			$dompdf->stream( 'preview_' . sanitize_title( $post->post_title ) . '.pdf', array( 'Attachment' => false ) );
+			exit;
+		} catch ( Throwable $e ) {
+			wp_die( esc_html( $e->getMessage() ) );
+		}
 	}
 }

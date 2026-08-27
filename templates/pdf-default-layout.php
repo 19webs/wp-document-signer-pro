@@ -377,8 +377,12 @@
 				<td><?php echo sprintf( esc_html__( '%s - NIF %s - %s. %s. Contacto: %s.', 'wp-doc-signer' ), esc_html( $est_titular ), esc_html( $est_nif ), esc_html( $est_comercial ), esc_html( $est_address ), esc_html( $est_email ) ); ?></td>
 			</tr>
 			<tr>
-				<td class="rgpd-label-cell"><?php esc_html_e( 'FINALIDADES Y BASE JURÍDICA', 'wp-doc-signer' ); ?></td>
+				<td class="rgpd-label-cell"><?php esc_html_e( 'FINALIDADES', 'wp-doc-signer' ); ?></td>
 				<td><?php echo esc_html( $rgpd_finalidad ); ?></td>
+			</tr>
+			<tr>
+				<td class="rgpd-label-cell"><?php esc_html_e( 'LEGITIMACIÓN', 'wp-doc-signer' ); ?></td>
+				<td><?php echo esc_html( $rgpd_legitimacion ); ?></td>
 			</tr>
 			<tr>
 				<td class="rgpd-label-cell"><?php esc_html_e( 'DESTINATARIOS', 'wp-doc-signer' ); ?></td>
@@ -391,6 +395,14 @@
 			<tr>
 				<td class="rgpd-label-cell"><?php esc_html_e( 'DERECHOS', 'wp-doc-signer' ); ?></td>
 				<td><?php echo esc_html( $rgpd_derechos ); ?></td>
+			</tr>
+			<tr>
+				<td class="rgpd-label-cell"><?php esc_html_e( 'PROCEDENCIA', 'wp-doc-signer' ); ?></td>
+				<td><?php echo esc_html( $rgpd_procedencia ); ?></td>
+			</tr>
+			<tr>
+				<td class="rgpd-label-cell"><?php esc_html_e( 'INFORMACIÓN ADICIONAL', 'wp-doc-signer' ); ?></td>
+				<td><?php echo esc_html( $rgpd_adicional ); ?></td>
 			</tr>
 		</table>
 

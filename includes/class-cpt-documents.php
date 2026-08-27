@@ -37,6 +37,10 @@ class WPDS_CPT_Documents {
 		// Columnas personalizadas en el listado
 		add_filter( 'manage_wp_documento_posts_columns', array( $this, 'set_custom_columns' ) );
 		add_action( 'manage_wp_documento_posts_custom_column', array( $this, 'render_custom_columns' ), 10, 2 );
+
+		// Registrar acciones AJAX para vistas previas (evita el retorno de "0")
+		add_action( 'wp_ajax_wpds_preview_form', array( $this, 'handle_preview_form' ) );
+		add_action( 'wp_ajax_wpds_preview_pdf', array( $this, 'handle_preview_pdf' ) );
 	}
 
 	/**
@@ -61,7 +65,7 @@ class WPDS_CPT_Documents {
 
 		$args = array(
 			'labels'             => $labels,
-			'public'             => false, // Ocultar del frontend público habitual
+			'public'             => false,
 			'publicly_queryable' => false,
 			'show_ui'            => true,
 			'show_in_menu'       => true,
@@ -72,17 +76,23 @@ class WPDS_CPT_Documents {
 			'hierarchical'       => false,
 			'menu_position'      => 25,
 			'menu_icon'          => 'dashicons-media-document',
-			'supports'           => array( 'title', 'editor' ), // Título y cuerpo del contrato
+			'supports'           => array( 'title', 'editor' ),
 		);
 
 		register_post_type( 'wp_documento', $args );
 	}
 
 	/**
+	 * Registrar el CPT de forma manual en activación (evita fallos de inserción inicial).
+	 */
+	public function register_cpt() {
+		$this->register_cpt_documento();
+	}
+
+	/**
 	 * Añadir metaboxes de configuración del documento.
 	 */
 	public function add_document_meta_boxes() {
-		// Ajustes de estado y visualización rápida
 		add_meta_box(
 			'wpds_document_settings',
 			__( 'Acciones y Estado del Documento', 'wp-doc-signer' ),
@@ -92,7 +102,6 @@ class WPDS_CPT_Documents {
 			'high'
 		);
 
-		// Datos de Establecimiento (NIF, Titular, etc.)
 		add_meta_box(
 			'wpds_establishment_details',
 			__( 'Datos del Establecimiento (Cabecera PDF)', 'wp-doc-signer' ),
@@ -102,10 +111,9 @@ class WPDS_CPT_Documents {
 			'high'
 		);
 
-		// Textos RGPD Personalizados
 		add_meta_box(
 			'wpds_rgpd_details',
-			__( 'Textos de Protección de Datos (RGPD) Personalizados', 'wp-doc-signer' ),
+			__( 'Textos de Protección de Datos (RGPD) y Consentimiento Personalizados', 'wp-doc-signer' ),
 			array( $this, 'render_rgpd_custom_metabox' ),
 			'wp_documento',
 			'normal',
@@ -168,7 +176,6 @@ class WPDS_CPT_Documents {
 	 * Renderizar metabox para configurar los datos del establecimiento de cabecera.
 	 */
 	public function render_establishment_metabox( $post ) {
-		// Obtener metadatos con valores por defecto del salón
 		$titular    = get_post_meta( $post->ID, '_wpds_est_titular', true );
 		$nif        = get_post_meta( $post->ID, '_wpds_est_nif', true );
 		$comercial  = get_post_meta( $post->ID, '_wpds_est_comercial', true );
@@ -177,24 +184,12 @@ class WPDS_CPT_Documents {
 		$phone      = get_post_meta( $post->ID, '_wpds_est_phone', true );
 
 		// Fallbacks preestablecidos de Sara Pérez
-		if ( empty( $titular ) ) {
-			$titular = 'Sara Pérez González';
-		}
-		if ( empty( $nif ) ) {
-			$nif = '75817812D';
-		}
-		if ( empty( $comercial ) ) {
-			$comercial = 'Sara Pérez Salón de Autor';
-		}
-		if ( empty( $address ) ) {
-			$address = 'Calle Ancha, 12, Local 2, 11402 Jerez de la Frontera, Cádiz';
-		}
-		if ( empty( $email ) ) {
-			$email = 'saraperezpeluqueriadeautor@gmail.com';
-		}
-		if ( empty( $phone ) ) {
-			$phone = '601 202 303';
-		}
+		if ( empty( $titular ) ) { $titular = 'Sara Pérez González'; }
+		if ( empty( $nif ) ) { $nif = '75817812D'; }
+		if ( empty( $comercial ) ) { $comercial = 'Sara Pérez Salón de Autor'; }
+		if ( empty( $address ) ) { $address = 'Calle Ancha, 12, Local 2, 11402 Jerez de la Frontera, Cádiz'; }
+		if ( empty( $email ) ) { $email = 'saraperezpeluqueriadeautor@gmail.com'; }
+		if ( empty( $phone ) ) { $phone = '601 202 303'; }
 		?>
 		<table class="form-table">
 			<tr>
@@ -259,9 +254,12 @@ class WPDS_CPT_Documents {
 			'wpds_est_email',
 			'wpds_est_phone',
 			'wpds_rgpd_finalidad',
+			'wpds_rgpd_legitimacion',
 			'wpds_rgpd_destinatarios',
 			'wpds_rgpd_conservacion',
 			'wpds_rgpd_derechos',
+			'wpds_rgpd_procedencia',
+			'wpds_rgpd_adicional',
 			'wpds_consentimiento_titulo',
 			'wpds_consentimiento_subtitulo',
 			'wpds_consentimiento_texto',
@@ -280,11 +278,14 @@ class WPDS_CPT_Documents {
 	 */
 	public function render_rgpd_custom_metabox( $post ) {
 		$finalidad     = get_post_meta( $post->ID, '_wpds_rgpd_finalidad', true );
+		$legitimacion  = get_post_meta( $post->ID, '_wpds_rgpd_legitimacion', true );
 		$destinatarios = get_post_meta( $post->ID, '_wpds_rgpd_destinatarios', true );
 		$conservacion  = get_post_meta( $post->ID, '_wpds_rgpd_conservacion', true );
 		$derechos      = get_post_meta( $post->ID, '_wpds_rgpd_derechos', true );
+		$procedencia   = get_post_meta( $post->ID, '_wpds_rgpd_procedencia', true );
+		$adicional     = get_post_meta( $post->ID, '_wpds_rgpd_adicional', true );
 		
-		// Nuevos campos de personalización de sección de Consentimiento
+		// Campos de personalización de sección de Consentimiento
 		$consentimiento_titulo             = get_post_meta( $post->ID, '_wpds_consentimiento_titulo', true );
 		$consentimiento_subtitulo          = get_post_meta( $post->ID, '_wpds_consentimiento_subtitulo', true );
 		$consentimiento_texto              = get_post_meta( $post->ID, '_wpds_consentimiento_texto', true );
@@ -294,9 +295,15 @@ class WPDS_CPT_Documents {
 		<h4 style="border-bottom: 1px solid #dfdfdf; padding-bottom: 10px; margin-top: 20px; font-weight: bold; color: #1d2327; font-size: 14px;"><?php esc_html_e( '1. Tabla de Información Básica (RGPD)', 'wp-doc-signer' ); ?></h4>
 		<table class="form-table">
 			<tr>
-				<th scope="row"><label for="wpds_rgpd_finalidad"><?php esc_html_e( 'Finalidades y Base Jurídica', 'wp-doc-signer' ); ?></label></th>
+				<th scope="row"><label for="wpds_rgpd_finalidad"><?php esc_html_e( 'Finalidades / Fines del tratamiento', 'wp-doc-signer' ); ?></label></th>
 				<td>
 					<textarea name="wpds_rgpd_finalidad" id="wpds_rgpd_finalidad" rows="3" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Gestionar la reserva y la relación precontractual/contractual...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $finalidad ); ?></textarea>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_rgpd_legitimacion"><?php esc_html_e( 'Legitimación / Base Legal', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<textarea name="wpds_rgpd_legitimacion" id="wpds_rgpd_legitimacion" rows="2" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Ejecución del contrato, consentimiento de la persona interesada y cumplimiento de obligaciones legales...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $legitimacion ); ?></textarea>
 				</td>
 			</tr>
 			<tr>
@@ -315,6 +322,18 @@ class WPDS_CPT_Documents {
 				<th scope="row"><label for="wpds_rgpd_derechos"><?php esc_html_e( 'Derechos', 'wp-doc-signer' ); ?></label></th>
 				<td>
 					<textarea name="wpds_rgpd_derechos" id="wpds_rgpd_derechos" rows="3" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Acceso, rectificación, supresión, limitación... mediante email...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $derechos ); ?></textarea>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_rgpd_procedencia"><?php esc_html_e( 'Procedencia / Origen de los datos', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<textarea name="wpds_rgpd_procedencia" id="wpds_rgpd_procedencia" rows="2" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Facilitados por la propia persona interesada al solicitar la cita o el servicio...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $procedencia ); ?></textarea>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpds_rgpd_adicional"><?php esc_html_e( 'Información Adicional / Detalles', 'wp-doc-signer' ); ?></label></th>
+				<td>
+					<textarea name="wpds_rgpd_adicional" id="wpds_rgpd_adicional" rows="2" class="large-text" placeholder="<?php esc_attr_e( 'Por defecto: Puede consultar la información adicional y detallada en nuestra política de privacidad web...', 'wp-doc-signer' ); ?>"><?php echo esc_textarea( $adicional ); ?></textarea>
 				</td>
 			</tr>
 		</table>
@@ -390,5 +409,134 @@ class WPDS_CPT_Documents {
 				echo '<code style="background:#f0f0f1; padding:3px 6px; border-radius:3px; font-size:11px;">[firmar_documento id="' . esc_attr( $post_id ) . '"]</code>';
 				break;
 		}
+	}
+
+	/**
+	 * Maneja la visualización en pantalla de la vista previa del documento.
+	 */
+	public function handle_preview_form() {
+		$post_id = isset( $_GET['post_id'] ) ? intval( $_GET['post_id'] ) : 0;
+		$nonce   = isset( $_GET['nonce'] ) ? sanitize_text_field( $_GET['nonce'] ) : '';
+
+		if ( ! wp_verify_nonce( $nonce, 'wpds_preview_form_' . $post_id ) ) {
+			wp_die( esc_html__( 'Sesión expirada o enlace inválido.', 'wp-doc-signer' ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post || 'wp_documento' !== $post->post_type ) {
+			wp_die( esc_html__( 'Documento no válido.', 'wp-doc-signer' ) );
+		}
+
+		// Encolar los assets necesarios
+		wp_enqueue_style( 'wpds-signer-style', WPDS_URL . 'assets/css/style.css', array(), WPDS_VERSION );
+		wp_enqueue_script( 'wpds-signature-pad', WPDS_URL . 'assets/js/signature_pad.umd.min.js', array(), WPDS_VERSION, true );
+		wp_enqueue_script( 'wpds-signer-script', WPDS_URL . 'assets/js/script.js', array( 'jquery' ), WPDS_VERSION, true );
+
+		// Localizar script AJAX
+		wp_localize_script(
+			'wpds-signer-script',
+			'wpds_ajax_obj',
+			array(
+				'ajax_url' => admin_url( 'admin-ajax.php' ),
+				'rest_url' => esc_url_raw( rest_url( 'wp-doc-signer/v1/submit' ) ),
+				'nonce'    => wp_create_nonce( 'wp_rest' ),
+			)
+		);
+
+		?>
+		<!DOCTYPE html>
+		<html <?php language_attributes(); ?>>
+		<head>
+			<meta charset="<?php bloginfo( 'charset' ); ?>">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title><?php echo sprintf( esc_html__( 'Vista Previa: %s', 'wp-doc-signer' ), esc_html( $post->post_title ) ); ?></title>
+			<?php wp_head(); ?>
+			<style>
+				body {
+					background-color: #f1f5f9;
+					padding: 40px 20px;
+					font-family: 'Outfit', sans-serif;
+				}
+				.wpds-preview-container {
+					max-width: 960px;
+					margin: 0 auto;
+					background: #fff;
+					padding: 35px;
+					border-radius: 12px;
+					box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+				}
+				.wpds-preview-header {
+					text-align: center;
+					margin-bottom: 30px;
+					border-bottom: 2px solid #f1f5f9;
+					padding-bottom: 20px;
+				}
+				.wpds-preview-header h1 {
+					margin: 0;
+					font-size: 26px;
+					color: #0f172a;
+					font-weight: 700;
+				}
+				.wpds-preview-header p {
+					margin: 5px 0 0 0;
+					color: #64748b;
+					font-size: 14px;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="wpds-preview-container">
+				<div class="wpds-preview-header">
+					<h1><?php esc_html_e( 'VISTA PREVIA DEL ASISTENTE DE FIRMAS', 'wp-doc-signer' ); ?></h1>
+					<p><?php echo sprintf( esc_html__( 'Estás visualizando el documento "%s" en modo de simulación.', 'wp-doc-signer' ), esc_html( $post->post_title ) ); ?></p>
+				</div>
+				<?php echo do_shortcode( '[firmar_documento id="' . $post_id . '"]' ); ?>
+			</div>
+			<?php wp_footer(); ?>
+		</body>
+		</html>
+		<?php
+		exit;
+	}
+
+	/**
+	 * Genera un PDF compilado de prueba y lo sirve directamente en el navegador.
+	 */
+	public function handle_preview_pdf() {
+		$post_id = isset( $_GET['post_id'] ) ? intval( $_GET['post_id'] ) : 0;
+		$nonce   = isset( $_GET['nonce'] ) ? sanitize_text_field( $_GET['nonce'] ) : '';
+
+		if ( ! wp_verify_nonce( $nonce, 'wpds_preview_pdf_' . $post_id ) ) {
+			wp_die( esc_html__( 'Sesión expirada o enlace inválido.', 'wp-doc-signer' ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post || 'wp_documento' !== $post->post_type ) {
+			wp_die( esc_html__( 'Documento no válido.', 'wp-doc-signer' ) );
+		}
+
+		// Datos ficticios completos de prueba
+		$form_data = array(
+			'nombre'         => 'Cliente de Prueba',
+			'telefono'       => '600 112 233',
+			'email'          => 'prueba@19webs.com',
+			'dni'            => '12345678Z',
+			'fecha'          => date( 'd/m/Y' ),
+			'firma_1'        => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAAA8CAYAAACGOMuXAAAACXBIWXMAAAsTAAALEwEAmpwYAAAC80lEQVR4nO3bQW7bMBAF0J9k1c0BcoDuuuvkQD1Aj9AN0ht0i/QGPkCP0A0a1C2qbnKADpAb1E0yQAIkXexqS6IlaZCSbYkyHwARaZEiRer/qDEhEBERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFQD/wL/xH4F3UqAEYAAAAASUVORK5CYII=',
+			'firma_2'        => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAAA8CAYAAACGOMuXAAAACXBIWXMAAAsTAAALEwEAmpwYAAAC80lEQVR4nO3bQW7bMBAF0J9k1c0BcoDuuuvkQD1Aj9AN0ht0i/QGPkCP0A0a1C2qbnKADpAb1E0yQAIkXexqS6IlaZCSbYkyHwARaZEiRer/qDEhEBERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFQD/wL/xH4F3UqAEYAAAAASUVORK5CYII=',
+			'consentimiento' => 1,
+		);
+
+		$pdf_engine = WPDS_PDF_Engine::get_instance();
+		$pdf_engine->generate_preview_pdf( $post_id, $form_data );
+		exit;
 	}
 }
