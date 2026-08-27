@@ -30,7 +30,7 @@ class WPDS_Elementor_Integration {
 	 * Constructor.
 	 */
 	private function __construct() {
-		add_action( 'plugins_loaded', array( $this, 'init' ) );
+		add_action( 'plugins_loaded', array( $this, 'init' ), 25 );
 	}
 
 	/**
