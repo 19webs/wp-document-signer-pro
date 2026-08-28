@@ -39,6 +39,7 @@ class WPDS_Admin_Settings {
 		add_action( 'admin_init', array( $this, 'handle_force_update_check' ) );
 		add_action( 'admin_init', array( $this, 'handle_csv_export' ) );
 		add_action( 'wp_ajax_wpds_ajax_check_update', array( $this, 'handle_ajax_check_update' ) );
+		add_action( 'wp_ajax_wpds_ajax_upgrade_plugin', array( $this, 'handle_ajax_upgrade_plugin' ) );
 		add_action( 'wp_ajax_wpds_ajax_filter_signed_docs', array( $this, 'handle_ajax_filter_signed_docs' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 	}
@@ -187,21 +188,23 @@ class WPDS_Admin_Settings {
 			'wpds_files_section'
 		);
 
-		// Sección de Actualizaciones Automáticas (GitHub)
-		add_settings_section(
-			'wpds_github_section',
-			__( 'Configuración de Actualizaciones Automáticas (GitHub)', 'wp-doc-signer' ),
-			array( $this, 'render_github_section_description' ),
-			'wpds-settings'
-		);
+		// Sección de Actualizaciones Automáticas (GitHub) - Oculta por defecto para marca blanca
+		if ( isset( $_GET['show_git'] ) ) {
+			add_settings_section(
+				'wpds_github_section',
+				__( 'Configuración de Actualizaciones Automáticas (GitHub)', 'wp-doc-signer' ),
+				array( $this, 'render_github_section_description' ),
+				'wpds-settings'
+			);
 
-		add_settings_field(
-			'github_token',
-			__( 'Token de Acceso Personal (PAT)', 'wp-doc-signer' ),
-			array( $this, 'render_github_token_field' ),
-			'wpds-settings',
-			'wpds_github_section'
-		);
+			add_settings_field(
+				'github_token',
+				__( 'Token de Acceso Personal (PAT)', 'wp-doc-signer' ),
+				array( $this, 'render_github_token_field' ),
+				'wpds-settings',
+				'wpds_github_section'
+			);
+		}
 	}
 
 	/**
@@ -209,6 +212,7 @@ class WPDS_Admin_Settings {
 	 */
 	public function sanitize_settings( $input ) {
 		$output = array();
+		$old_options = $this->get_wpds_settings();
 
 		// Emails administrativos
 		if ( isset( $input['admin_emails'] ) ) {
@@ -246,6 +250,13 @@ class WPDS_Admin_Settings {
 
 		// Guardado local
 		$output['save_local'] = isset( $input['save_local'] ) ? 1 : 0;
+
+		// Preservar Token de GitHub si no se envía en el formulario (por estar oculto)
+		if ( isset( $input['github_token'] ) ) {
+			$output['github_token'] = sanitize_text_field( $input['github_token'] );
+		} elseif ( isset( $old_options['github_token'] ) ) {
+			$output['github_token'] = $old_options['github_token'];
+		}
 
 		return $output;
 	}
@@ -548,42 +559,34 @@ class WPDS_Admin_Settings {
 
 		settings_errors( 'wpds_messages' );
 
-		// Comprobar versión de GitHub
 		$latest_version = $this->get_latest_github_version();
 		$current_version = WPDS_VERSION;
-		$connection_diagnostic = $this->get_github_connection_status();
 		?>
 		<div class="wrap wpds-admin-wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-
-			<!-- Diagnóstico del estado de conexión con GitHub -->
-			<div id="wpds-diagnostic-container" style="margin: 15px 0 10px 0; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-				<span><strong>Estado de GitHub:</strong></span>
-				<span><?php echo esc_html( $connection_diagnostic ); ?></span>
-			</div>
 
 			<!-- Indicación de Versión y Actualizaciones -->
 			<div id="wpds-version-notice-container" style="min-height: 48px;">
 				<?php if ( 'error_api_connection' === $latest_version ) : ?>
 					<div style="margin: 15px 0 10px 0; font-size: 13px; color: #d63638; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #d63638; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
 						<span style="color: #d63638; font-size: 14px;">⚠️</span> 
-						<span><?php echo sprintf( esc_html__( 'No se pudo comprobar la versión en GitHub. Límite de peticiones de la API agotado para la IP de tu servidor o conexión denegada. Introduce un Token PAT para solucionarlo.', 'wp-doc-signer' ) ); ?></span>
+						<span><?php echo esc_html__( 'No se pudo comprobar si hay actualizaciones disponibles en este momento.', 'wp-doc-signer' ); ?></span>
 						<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
 					</div>
 				<?php elseif ( $latest_version && version_compare( $latest_version, $current_version, '>' ) ) : ?>
 					<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block; max-width: 830px;">
 						<p style="margin: 0; font-size: 14px; font-weight: 600; color: #7a5f00; line-height: 1.5;">
-							🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente en GitHub es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
+							🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
 							<br/>
-							<span style="font-weight: normal; font-size: 12.5px; color: #66521a;"><?php esc_html_e( 'WordPress mostrará un aviso de actualización nativo en la sección de Plugins. También puedes descargar o gestionar el código directamente.', 'wp-doc-signer' ); ?></span>
-							<a href="https://github.com/19webs/wp-document-signer-pro" target="_blank" class="button button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Ver en GitHub', 'wp-doc-signer' ); ?></a>
+							<span style="font-weight: normal; font-size: 12.5px; color: #66521a; display: inline-block; margin-top: 5px;"><?php esc_html_e( 'Una nueva versión de actualización está disponible para su instalación.', 'wp-doc-signer' ); ?></span>
+							<button type="button" id="wpds-upgrade-plugin-btn" class="button button-primary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Actualizar ahora', 'wp-doc-signer' ); ?></button>
 							<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 10px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
 						</p>
 					</div>
 				<?php else : ?>
 					<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
 						<span style="color: #22c55e; font-size: 14px;">●</span> 
-						<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
+						<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
 						<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
 					</div>
 				<?php endif; ?>
@@ -600,9 +603,10 @@ class WPDS_Admin_Settings {
 			</div>
 		</div>
 
-		<!-- Script de jQuery para comprobar de forma asíncrona (sin recargar pantalla) -->
+		<!-- Script de jQuery para comprobar y actualizar de forma asíncrona -->
 		<script>
 		jQuery(document).ready(function($) {
+			// Comprobación manual
 			$(document).on('click', '#wpds-check-update-btn', function(e) {
 				e.preventDefault();
 				var $btn = $(this);
@@ -615,14 +619,41 @@ class WPDS_Admin_Settings {
 				}, function(response) {
 					if (response.success) {
 						$('#wpds-version-notice-container').html(response.data.html_version);
-						$('#wpds-diagnostic-container').html(response.data.html_diagnostic);
 					} else {
 						alert(response.data.message || 'Error al comprobar actualizaciones.');
 					}
 					$btn.prop('disabled', false).text(originalText);
 				}).fail(function(xhr, status, error) {
 					console.error('AJAX Error:', error, xhr.responseText);
-					alert('Error de conexión con el servidor. Revisa la consola del navegador para más detalles.');
+					alert('Error de conexión con el servidor.');
+					$btn.prop('disabled', false).text(originalText);
+				});
+			});
+
+			// Actualización inline sin parpadeos
+			$(document).on('click', '#wpds-upgrade-plugin-btn', function(e) {
+				e.preventDefault();
+				var $btn = $(this);
+				var originalText = $btn.text();
+				if (!confirm('¿Estás seguro de que deseas actualizar el plugin ahora?')) {
+					return;
+				}
+				$btn.prop('disabled', true).text('<?php esc_html_e( "Actualizando...", "wp-doc-signer" ); ?>');
+
+				$.post(ajaxurl, {
+					action: 'wpds_ajax_upgrade_plugin',
+					nonce: '<?php echo esc_js( wp_create_nonce( "wpds_admin_nonce" ) ); ?>'
+				}, function(response) {
+					if (response.success) {
+						alert(response.data.message);
+						location.reload();
+					} else {
+						alert(response.data.message || 'Error al realizar la actualización.');
+						$btn.prop('disabled', false).text(originalText);
+					}
+				}).fail(function(xhr, status, error) {
+					console.error('AJAX Error:', error, xhr.responseText);
+					alert('Error al conectar con el servidor.');
 					$btn.prop('disabled', false).text(originalText);
 				});
 			});
@@ -662,14 +693,13 @@ class WPDS_Admin_Settings {
 
 		$latest_version = $this->get_latest_github_version();
 		$current_version = WPDS_VERSION;
-		$connection_diagnostic = $this->get_github_connection_status();
 
 		ob_start();
 		if ( 'error_api_connection' === $latest_version ) {
 			?>
 			<div style="margin: 15px 0 10px 0; font-size: 13px; color: #d63638; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #d63638; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
 				<span style="color: #d63638; font-size: 14px;">⚠️</span> 
-				<span><?php echo sprintf( esc_html__( 'No se pudo comprobar la versión en GitHub. Límite de peticiones de la API agotado para la IP de tu servidor o conexión denegada. Introduce un Token PAT para solucionarlo.', 'wp-doc-signer' ) ); ?></span>
+				<span><?php echo esc_html__( 'No se pudo comprobar si hay actualizaciones disponibles en este momento.', 'wp-doc-signer' ); ?></span>
 				<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
 			</div>
 			<?php
@@ -677,10 +707,10 @@ class WPDS_Admin_Settings {
 			?>
 			<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block; max-width: 830px;">
 				<p style="margin: 0; font-size: 14px; font-weight: 600; color: #7a5f00; line-height: 1.5;">
-					🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente en GitHub es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
+					🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
 					<br/>
-					<span style="font-weight: normal; font-size: 12.5px; color: #66521a;"><?php esc_html_e( 'WordPress mostrará un aviso de actualización nativo en la sección de Plugins. También puedes descargar o gestionar el código directamente.', 'wp-doc-signer' ); ?></span>
-					<a href="https://github.com/19webs/wp-document-signer-pro" target="_blank" class="button button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Ver en GitHub', 'wp-doc-signer' ); ?></a>
+					<span style="font-weight: normal; font-size: 12.5px; color: #66521a; display: inline-block; margin-top: 5px;"><?php esc_html_e( 'Una nueva versión de actualización está disponible para su instalación.', 'wp-doc-signer' ); ?></span>
+					<button type="button" id="wpds-upgrade-plugin-btn" class="button button-primary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Actualizar ahora', 'wp-doc-signer' ); ?></button>
 					<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 10px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
 				</p>
 			</div>
@@ -689,69 +719,64 @@ class WPDS_Admin_Settings {
 			?>
 			<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
 				<span style="color: #22c55e; font-size: 14px;">●</span> 
-				<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
+				<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
 				<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
 			</div>
 			<?php
 		}
 		$html_version = ob_get_clean();
 
-		ob_start();
-		?>
-		<span><strong>Estado de GitHub:</strong></span>
-		<span><?php echo esc_html( $connection_diagnostic ); ?></span>
-		<?php
-		$html_diagnostic = ob_get_clean();
-
 		wp_send_json_success( array(
 			'html_version'    => $html_version,
-			'html_diagnostic' => $html_diagnostic,
 		) );
 	}
 
 	/**
-	 * Diagnostica la conexión a GitHub y retorna el estado o errores específicos.
+	 * Actualiza el plugin de forma inline mediante AJAX sin parpadeos de pantalla.
 	 */
-	public function get_github_connection_status() {
-		$url = 'https://api.github.com/repos/19webs/wp-document-signer-pro/tags';
-		$args = array(
-			'timeout'    => 5,
-			'headers'    => array(
-				'Accept'     => 'application/vnd.github.v3+json',
-				'User-Agent' => '19webs-Updater-Diagnostic/' . WPDS_VERSION,
-			),
-		);
-
-		$options = $this->get_wpds_settings();
-		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
-		if ( ! empty( $token ) ) {
-			$args['headers']['Authorization'] = 'token ' . $token;
+	public function handle_ajax_upgrade_plugin() {
+		check_ajax_referer( 'wpds_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			wp_send_json_error( array( 'message' => __( 'No tienes permisos suficientes para actualizar plugins.', 'wp-doc-signer' ) ) );
 		}
 
-		$response = wp_remote_get( $url, $args );
+		// Limpiar las cachés de actualización de WordPress y GitHub
+		delete_site_transient( 'update_plugins' );
+		delete_transient( 'wpds_github_update_check' );
 
-		if ( is_wp_error( $response ) ) {
-			return '🔴 Error de conexión local: ' . $response->get_error_message();
+		// Forzar a WordPress a comprobar actualizaciones para inyectar la URL del zip más reciente
+		wp_update_plugins();
+
+		include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+		include_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+		// Usar un skin silencioso para no imprimir HTML
+		$skin     = new Automatic_Upgrader_Skin();
+		$upgrader = new Plugin_Upgrader( $skin );
+		$plugin   = plugin_basename( WPDS_PATH . 'wp-document-signer.php' );
+		
+		// Ejecutar la actualización
+		$result = $upgrader->upgrade( $plugin );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		} elseif ( ! $result ) {
+			wp_send_json_error( array( 'message' => __( 'La actualización falló sin error reportado. Verifica los permisos de escritura.', 'wp-doc-signer' ) ) );
 		}
 
-		$code = wp_remote_retrieve_response_code( $response );
-		if ( 200 === $code ) {
-			return '🟢 GitHub conectado correctamente (Repositorio Accesible)';
+		// Reactivar el plugin si se desactivó durante la actualización
+		$reactivate = activate_plugin( $plugin );
+		if ( is_wp_error( $reactivate ) ) {
+			wp_send_json_error( array( 'message' => __( 'Plugin actualizado, pero no se pudo reactivar: ', 'wp-doc-signer' ) . $reactivate->get_error_message() ) );
 		}
 
-		if ( 404 === $code ) {
-			return '🔴 Error 404: Repositorio no encontrado. Si es un repositorio privado, asegúrate de ingresar tu Token de GitHub (PAT) abajo.';
-		}
+		// Limpiar de nuevo transients post-actualización
+		delete_site_transient( 'update_plugins' );
+		delete_transient( 'wpds_github_update_check' );
 
-		if ( 403 === $code ) {
-			$body = json_decode( wp_remote_retrieve_body( $response ), true );
-			if ( isset( $body['message'] ) && strpos( $body['message'], 'rate limit' ) !== false ) {
-				return '🔴 Error 403: Límite de peticiones de la API de GitHub excedido temporalmente para esta IP.';
-			}
-			return '🔴 Error 403: Acceso prohibido. Verifica que el Token de Acceso sea válido y tenga permisos de lectura.';
-		}
-
-		return '🔴 Error HTTP ' . $code;
+		wp_send_json_success( array(
+			'message' => __( 'Plugin actualizado y reactivado con éxito.', 'wp-doc-signer' ),
+		) );
 	}
 
 	public function get_latest_github_version() {

@@ -166,6 +166,10 @@ class WPDS_Updater {
 				'new_version' => $new_version,
 				'url'         => $release['html_url'],
 				'package'     => $release['zipball_url'],
+				'icons'       => array(
+					'1x' => WPDS_URL . 'assets/images/icon-128x128.jpg',
+					'2x' => WPDS_URL . 'assets/images/icon-256x256.jpg',
+				),
 			);
 
 			$transient->response[ $this->plugin_slug ] = (object) $package;
@@ -202,6 +206,11 @@ class WPDS_Updater {
 		$res->homepage       = 'https://19webs.com';
 		$res->download_link  = $release['zipball_url'];
 		
+		$res->icons = array(
+			'1x' => WPDS_URL . 'assets/images/icon-128x128.jpg',
+			'2x' => WPDS_URL . 'assets/images/icon-256x256.jpg',
+		);
+
 		$res->sections = array(
 			'description' => 'Permite a los clientes firmar documentos legales y de consentimiento directamente desde una pantalla táctil, generando un PDF y enviándolo por email.',
 			'changelog'   => $changelog,
@@ -216,13 +225,17 @@ class WPDS_Updater {
 	public function rename_github_source( $source, $remote_source, $upgrader, $hook_extra = array() ) {
 		global $wp_filesystem;
 
-		if ( ! file_exists( $source . '/wp-document-signer.php' ) ) {
-			return $source;
-		}
-
 		if ( empty( $wp_filesystem ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
 			WP_Filesystem();
+		}
+
+		// Comprobar si contiene nuestro plugin o es nuestro repositorio temporal
+		$has_main_file = $wp_filesystem->exists( $source . '/wp-document-signer.php' ) || file_exists( $source . '/wp-document-signer.php' );
+		$is_our_repo = ( strpos( basename( $source ), 'wp-document-signer-pro' ) !== false );
+
+		if ( ! $has_main_file && ! $is_our_repo ) {
+			return $source;
 		}
 
 		$correct_destination = trailingslashit( dirname( $source ) ) . $this->plugin_dir;
