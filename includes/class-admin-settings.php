@@ -41,11 +41,6 @@ class WPDS_Admin_Settings {
 		add_action( 'wp_ajax_wpds_ajax_check_update', array( $this, 'handle_ajax_check_update' ) );
 		add_action( 'wp_ajax_wpds_ajax_filter_signed_docs', array( $this, 'handle_ajax_filter_signed_docs' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
-		
-		// Filtro nativo de WordPress para inyectar actualizaciones automáticas desde GitHub
-		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_plugin_update' ) );
-		// Filtro para adjuntar el token de autorización durante la descarga del ZIP del repositorio privado
-		add_filter( 'http_request_args', array( $this, 'add_github_token_to_download' ), 10, 2 );
 	}
 
 	/**
@@ -645,6 +640,7 @@ class WPDS_Admin_Settings {
 				wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
 			}
 			delete_site_transient( 'update_plugins' );
+			delete_transient( 'wpds_github_update_check' );
 			delete_transient( 'wpds_latest_github_version' );
 			wp_redirect( remove_query_arg( 'check_update' ) );
 			exit;
@@ -661,6 +657,7 @@ class WPDS_Admin_Settings {
 		}
 
 		delete_site_transient( 'update_plugins' );
+		delete_transient( 'wpds_github_update_check' );
 		delete_transient( 'wpds_latest_github_version' );
 
 		$latest_version = $this->get_latest_github_version();
@@ -757,101 +754,15 @@ class WPDS_Admin_Settings {
 		return '🔴 Error HTTP ' . $code;
 	}
 
-	/**
-	 * Compara la versión local con la versión más reciente (tags) en GitHub.
-	 */
 	public function get_latest_github_version() {
-		$latest_version = get_transient( 'wpds_latest_github_version' );
-		if ( false !== $latest_version ) {
-			return $latest_version;
+		$release = WPDS_Updater::get_instance()->get_latest_github_release();
+		if ( $release && isset( $release['tag_name'] ) ) {
+			return ltrim( $release['tag_name'], 'v' );
 		}
-
-		$url = 'https://api.github.com/repos/19webs/wp-document-signer-pro/tags';
-		$args = array(
-			'timeout'    => 5,
-			'headers'    => array(
-				'Accept'     => 'application/vnd.github.v3+json',
-				'User-Agent' => '19webs-Updater/' . WPDS_VERSION,
-			),
-		);
-
-		$options = $this->get_wpds_settings();
-		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
-		if ( ! empty( $token ) ) {
-			$args['headers']['Authorization'] = 'token ' . $token;
-		}
-
-		$response = wp_remote_get( $url, $args );
-
-		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
-			return 'error_api_connection';
-		}
-
-		$body = wp_remote_retrieve_body( $response );
-		$tags = json_decode( $body, true );
-
-		if ( ! is_array( $tags ) || empty( $tags ) ) {
-			return 'error_api_connection';
-		}
-
-		$highest_version = '0.0.0';
-		foreach ( $tags as $tag ) {
-			if ( isset( $tag['name'] ) ) {
-				$tag_ver = ltrim( $tag['name'], 'v' );
-				if ( version_compare( $tag_ver, $highest_version, '>' ) ) {
-					$highest_version = $tag_ver;
-				}
-			}
-		}
-
-		if ( '0.0.0' !== $highest_version ) {
-			set_transient( 'wpds_latest_github_version', $highest_version, 6 * HOUR_IN_SECONDS );
-			return $highest_version;
-		}
-
-		return false;
+		return 'error_api_connection';
 	}
 
-	/**
-	 * Inyecta dinámicamente notificaciones de actualización nativa en WordPress desde GitHub.
-	 */
-	public function check_for_plugin_update( $transient ) {
-		if ( empty( $transient->checked ) ) {
-			return $transient;
-		}
 
-		$latest_version = $this->get_latest_github_version();
-		$current_version = WPDS_VERSION;
-
-		if ( $latest_version && 'error_api_connection' !== $latest_version && version_compare( $latest_version, $current_version, '>' ) ) {
-			$plugin_slug = 'wp-document-signer-pro/wp-document-signer.php';
-			
-			$response = new stdClass();
-			$response->slug        = 'wp-document-signer-pro';
-			$response->plugin      = $plugin_slug;
-			$response->new_version = $latest_version;
-			$response->url         = 'https://github.com/19webs/wp-document-signer-pro';
-			$response->package     = 'https://api.github.com/repos/19webs/wp-document-signer-pro/zipball/v' . $latest_version;
-
-			$transient->response[ $plugin_slug ] = $response;
-		}
-
-		return $transient;
-	}
-
-	/**
-	 * Intercepta las solicitudes HTTP nativas de WordPress de descarga de plugins.
-	 */
-	public function add_github_token_to_download( $args, $url ) {
-		if ( strpos( $url, 'api.github.com/repos/19webs/wp-document-signer-pro/zipball' ) !== false || strpos( $url, 'codeload.github.com/19webs/wp-document-signer-pro' ) !== false ) {
-			$options = $this->get_wpds_settings();
-			$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
-			if ( ! empty( $token ) ) {
-				$args['headers']['Authorization'] = 'token ' . $token;
-			}
-		}
-		return $args;
-	}
 
 	/**
 	 * Obtiene el listado filtrado de archivos PDF.
