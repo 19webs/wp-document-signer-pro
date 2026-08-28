@@ -118,6 +118,22 @@ class WPDS_REST_API {
 
 			$pdf_path = $pdf_result['file_path'];
 
+			// Registrar en el historial persistente de firmas en la base de datos
+			$signatures_log = get_option( 'wpds_signatures_log', array() );
+			$new_signature = array(
+				'date'           => current_time( 'mysql' ),
+				'document_id'    => $document_id,
+				'document_title' => $post->post_title,
+				'client_name'    => $nombre,
+				'client_dni'     => $dni,
+				'client_email'   => $email,
+				'client_phone'   => $telefono,
+				'consent_image'  => intval( $consentimiento ),
+				'filename'       => isset( $pdf_result['filename'] ) ? $pdf_result['filename'] : '',
+			);
+			array_unshift( $signatures_log, $new_signature );
+			update_option( 'wpds_signatures_log', $signatures_log, false );
+
 			// Enviar correos con el PDF adjunto
 			$mailer = WPDS_Mailer::get_instance();
 			$mail_sent = $mailer->send_emails( $post, $form_data, $pdf_path );

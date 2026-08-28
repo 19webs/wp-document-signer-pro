@@ -36,8 +36,16 @@ class WPDS_Admin_Settings {
 		add_action( 'admin_init', array( $this, 'handle_pdf_view' ) );
 		add_action( 'admin_init', array( $this, 'handle_file_delete' ) );
 		add_action( 'admin_init', array( $this, 'handle_bulk_actions' ) );
+		add_action( 'admin_init', array( $this, 'handle_force_update_check' ) );
+		add_action( 'admin_init', array( $this, 'handle_csv_export' ) );
+		add_action( 'wp_ajax_wpds_ajax_check_update', array( $this, 'handle_ajax_check_update' ) );
 		add_action( 'wp_ajax_wpds_ajax_filter_signed_docs', array( $this, 'handle_ajax_filter_signed_docs' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		
+		// Filtro nativo de WordPress para inyectar actualizaciones automáticas desde GitHub
+		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_plugin_update' ) );
+		// Filtro para adjuntar el token de autorización durante la descarga del ZIP del repositorio privado
+		add_filter( 'http_request_args', array( $this, 'add_github_token_to_download' ), 10, 2 );
 	}
 
 	/**
@@ -63,6 +71,16 @@ class WPDS_Admin_Settings {
 			'wpds-settings',
 			array( $this, 'render_settings_page' )
 		);
+
+		// 3. Registro de Envíos de Correo
+		add_submenu_page(
+			'edit.php?post_type=wp_documento',
+			__( 'Registro de Envíos', 'wp-doc-signer' ),
+			__( 'Registro de Envíos', 'wp-doc-signer' ),
+			'manage_options',
+			'wpds-email-log',
+			array( $this, 'render_email_log_page' )
+		);
 	}
 
 	/**
@@ -70,7 +88,7 @@ class WPDS_Admin_Settings {
 	 */
 	public function enqueue_admin_assets( $hook ) {
 		$screen = get_current_screen();
-		if ( $screen && ( 'wp_documento' === $screen->post_type || 'wp_documento_page_wpds-settings' === $hook || 'wp_documento_page_wpds-signed-docs' === $hook ) ) {
+		if ( $screen && ( 'wp_documento' === $screen->post_type || 'wp_documento_page_wpds-settings' === $hook || 'wp_documento_page_wpds-signed-docs' === $hook || 'wp_documento_page_wpds-email-log' === $hook ) ) {
 			wp_enqueue_style( 'wpds-admin-style', WPDS_URL . 'assets/css/admin-style.css', array(), WPDS_VERSION );
 			
 			// Encolar media library para selector de marca de agua
@@ -164,6 +182,22 @@ class WPDS_Admin_Settings {
 			array( $this, 'render_save_local_field' ),
 			'wpds-settings',
 			'wpds_files_section'
+		);
+
+		// Sección de Actualizaciones Automáticas (GitHub)
+		add_settings_section(
+			'wpds_github_section',
+			__( 'Configuración de Actualizaciones Automáticas (GitHub)', 'wp-doc-signer' ),
+			array( $this, 'render_github_section_description' ),
+			'wpds-settings'
+		);
+
+		add_settings_field(
+			'github_token',
+			__( 'Token de Acceso Personal (PAT)', 'wp-doc-signer' ),
+			array( $this, 'render_github_token_field' ),
+			'wpds-settings',
+			'wpds_github_section'
 		);
 	}
 
@@ -313,6 +347,17 @@ class WPDS_Admin_Settings {
 		$checked = isset( $options['save_local'] ) ? $options['save_local'] : 1;
 		echo '<label><input type="checkbox" name="wpds_settings[save_local]" value="1" ' . checked( 1, $checked, false ) . ' /> ' . esc_html__( 'Guardar archivos firmados en la carpeta del servidor /wp-content/uploads/firmas-pdf/', 'wp-doc-signer' ) . '</label>';
 		echo '<p class="description" style="color: #646970;">' . esc_html__( 'Los archivos se protegerán automáticamente mediante restricciones de acceso .htaccess en servidores basados en Apache.', 'wp-doc-signer' ) . '</p>';
+	}
+
+	public function render_github_section_description() {
+		echo '<p class="description">' . esc_html__( 'Configura las credenciales de GitHub para conectar tu instalación con las actualizaciones automáticas.', 'wp-doc-signer' ) . '</p>';
+	}
+
+	public function render_github_token_field() {
+		$options = get_option( 'wpds_settings' );
+		$value = isset( $options['github_token'] ) ? $options['github_token'] : '';
+		echo '<input type="password" name="wpds_settings[github_token]" class="regular-text" value="' . esc_attr( $value ) . '" placeholder="ghp_..." />';
+		echo '<p class="description">' . esc_html__( 'Genera tu token de acceso (PAT) clásico en GitHub con permisos de "repo" para repositorios privados.', 'wp-doc-signer' ) . '</p>';
 	}
 
 
@@ -504,10 +549,46 @@ class WPDS_Admin_Settings {
 
 		settings_errors( 'wpds_messages' );
 
-		// Renderizar formulario general de ajustes
+		// Comprobar versión de GitHub
+		$latest_version = $this->get_latest_github_version();
+		$current_version = WPDS_VERSION;
+		$connection_diagnostic = $this->get_github_connection_status();
 		?>
 		<div class="wrap wpds-admin-wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
+			<!-- Diagnóstico del estado de conexión con GitHub -->
+			<div id="wpds-diagnostic-container" style="margin: 15px 0 10px 0; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+				<span><strong>Estado de GitHub:</strong></span>
+				<span><?php echo esc_html( $connection_diagnostic ); ?></span>
+			</div>
+
+			<!-- Indicación de Versión y Actualizaciones -->
+			<div id="wpds-version-notice-container" style="min-height: 48px;">
+				<?php if ( 'error_api_connection' === $latest_version ) : ?>
+					<div style="margin: 15px 0 10px 0; font-size: 13px; color: #d63638; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #d63638; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+						<span style="color: #d63638; font-size: 14px;">⚠️</span> 
+						<span><?php echo sprintf( esc_html__( 'No se pudo comprobar la versión en GitHub. Límite de peticiones de la API agotado para la IP de tu servidor o conexión denegada. Introduce un Token PAT para solucionarlo.', 'wp-doc-signer' ) ); ?></span>
+						<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
+					</div>
+				<?php elseif ( $latest_version && version_compare( $latest_version, $current_version, '>' ) ) : ?>
+					<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block; max-width: 830px;">
+						<p style="margin: 0; font-size: 14px; font-weight: 600; color: #7a5f00; line-height: 1.5;">
+							🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente en GitHub es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
+							<br/>
+							<span style="font-weight: normal; font-size: 12.5px; color: #66521a;"><?php esc_html_e( 'WordPress mostrará un aviso de actualización nativo en la sección de Plugins. También puedes descargar o gestionar el código directamente.', 'wp-doc-signer' ); ?></span>
+							<a href="https://github.com/19webs/wp-document-signer-pro" target="_blank" class="button button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Ver en GitHub', 'wp-doc-signer' ); ?></a>
+							<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 10px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
+						</p>
+					</div>
+				<?php else : ?>
+					<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+						<span style="color: #22c55e; font-size: 14px;">●</span> 
+						<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
+						<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
+					</div>
+				<?php endif; ?>
+			</div>
 			
 			<div class="wpds-settings-layout" style="max-width: 860px; margin-top: 20px; padding: 25px; border-radius: 8px; border: 1px solid #c3c4c7; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
 				<form action="options.php" method="post">
@@ -519,7 +600,253 @@ class WPDS_Admin_Settings {
 				</form>
 			</div>
 		</div>
+
+		<!-- Script de jQuery para comprobar de forma asíncrona (sin recargar pantalla) -->
+		<script>
+		jQuery(document).ready(function($) {
+			$(document).on('click', '#wpds-check-update-btn', function(e) {
+				e.preventDefault();
+				var $btn = $(this);
+				var originalText = $btn.text();
+				$btn.prop('disabled', true).text('<?php esc_html_e( "Comprobando...", "wp-doc-signer" ); ?>');
+
+				$.post(ajaxurl, {
+					action: 'wpds_ajax_check_update',
+					nonce: '<?php echo esc_js( wp_create_nonce( "wpds_admin_nonce" ) ); ?>'
+				}, function(response) {
+					if (response.success) {
+						$('#wpds-version-notice-container').html(response.data.html_version);
+						$('#wpds-diagnostic-container').html(response.data.html_diagnostic);
+					} else {
+						alert(response.data.message || 'Error al comprobar actualizaciones.');
+					}
+					$btn.prop('disabled', false).text(originalText);
+				}).fail(function(xhr, status, error) {
+					console.error('AJAX Error:', error, xhr.responseText);
+					alert('Error de conexión con el servidor. Revisa la consola del navegador para más detalles.');
+					$btn.prop('disabled', false).text(originalText);
+				});
+			});
+		});
+		</script>
 		<?php
+	}
+
+	/**
+	 * Forzar la eliminación de la caché de versión de GitHub al solicitarlo.
+	 */
+	public function handle_force_update_check() {
+		if ( isset( $_GET['page'] ) && 'wpds-settings' === $_GET['page'] && isset( $_GET['check_update'] ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+			}
+			delete_site_transient( 'update_plugins' );
+			delete_transient( 'wpds_latest_github_version' );
+			wp_redirect( remove_query_arg( 'check_update' ) );
+			exit;
+		}
+	}
+
+	/**
+	 * Realiza la comprobación de versión de GitHub de forma asíncrona mediante AJAX.
+	 */
+	public function handle_ajax_check_update() {
+		check_ajax_referer( 'wpds_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Acceso denegado.', 'wp-doc-signer' ) ) );
+		}
+
+		delete_site_transient( 'update_plugins' );
+		delete_transient( 'wpds_latest_github_version' );
+
+		$latest_version = $this->get_latest_github_version();
+		$current_version = WPDS_VERSION;
+		$connection_diagnostic = $this->get_github_connection_status();
+
+		ob_start();
+		if ( 'error_api_connection' === $latest_version ) {
+			?>
+			<div style="margin: 15px 0 10px 0; font-size: 13px; color: #d63638; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #d63638; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+				<span style="color: #d63638; font-size: 14px;">⚠️</span> 
+				<span><?php echo sprintf( esc_html__( 'No se pudo comprobar la versión en GitHub. Límite de peticiones de la API agotado para la IP de tu servidor o conexión denegada. Introduce un Token PAT para solucionarlo.', 'wp-doc-signer' ) ); ?></span>
+				<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
+			</div>
+			<?php
+		} elseif ( $latest_version && version_compare( $latest_version, $current_version, '>' ) ) {
+			?>
+			<div class="notice notice-warning inline" style="margin: 15px 0; padding: 15px; border-left-color: #ffb900; background: #fffdf6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: block; max-width: 830px;">
+				<p style="margin: 0; font-size: 14px; font-weight: 600; color: #7a5f00; line-height: 1.5;">
+					🎉 <?php echo sprintf( esc_html__( '¡Nueva versión disponible! Tienes instalada la versión %s y la versión más reciente en GitHub es la %s.', 'wp-doc-signer' ), '<strong>' . esc_html( $current_version ) . '</strong>', '<strong>v' . esc_html( $latest_version ) . '</strong>' ); ?>
+					<br/>
+					<span style="font-weight: normal; font-size: 12.5px; color: #66521a;"><?php esc_html_e( 'WordPress mostrará un aviso de actualización nativo en la sección de Plugins. También puedes descargar o gestionar el código directamente.', 'wp-doc-signer' ); ?></span>
+					<a href="https://github.com/19webs/wp-document-signer-pro" target="_blank" class="button button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Ver en GitHub', 'wp-doc-signer' ); ?></a>
+					<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 10px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
+				</p>
+			</div>
+			<?php
+		} else {
+			?>
+			<div style="margin: 15px 0 10px 0; font-size: 13px; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 6px; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #c3c4c7; max-width: 830px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+				<span style="color: #22c55e; font-size: 14px;">●</span> 
+				<span><?php echo sprintf( esc_html__( 'Versión instalada: %s (El plugin está al día con GitHub)', 'wp-doc-signer' ), esc_html( $current_version ) ); ?></span>
+				<button type="button" id="wpds-check-update-btn" class="button button-secondary button-small" style="margin-left: 15px; vertical-align: middle;"><?php esc_html_e( 'Comprobar ahora', 'wp-doc-signer' ); ?></button>
+			</div>
+			<?php
+		}
+		$html_version = ob_get_clean();
+
+		ob_start();
+		?>
+		<span><strong>Estado de GitHub:</strong></span>
+		<span><?php echo esc_html( $connection_diagnostic ); ?></span>
+		<?php
+		$html_diagnostic = ob_get_clean();
+
+		wp_send_json_success( array(
+			'html_version'    => $html_version,
+			'html_diagnostic' => $html_diagnostic,
+		) );
+	}
+
+	/**
+	 * Diagnostica la conexión a GitHub y retorna el estado o errores específicos.
+	 */
+	public function get_github_connection_status() {
+		$url = 'https://api.github.com/repos/19webs/wp-document-signer-pro/tags';
+		$args = array(
+			'timeout'    => 5,
+			'headers'    => array(
+				'Accept'     => 'application/vnd.github.v3+json',
+				'User-Agent' => '19webs-Updater-Diagnostic/' . WPDS_VERSION,
+			),
+		);
+
+		$options = get_option( 'wpds_settings' );
+		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
+		if ( ! empty( $token ) ) {
+			$args['headers']['Authorization'] = 'token ' . $token;
+		}
+
+		$response = wp_remote_get( $url, $args );
+
+		if ( is_wp_error( $response ) ) {
+			return '🔴 Error de conexión local: ' . $response->get_error_message();
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( 200 === $code ) {
+			return '🟢 GitHub conectado correctamente (Repositorio Accesible)';
+		}
+
+		if ( 404 === $code ) {
+			return '🔴 Error 404: Repositorio no encontrado. Si es un repositorio privado, asegúrate de ingresar tu Token de GitHub (PAT) abajo.';
+		}
+
+		if ( 403 === $code ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			if ( isset( $body['message'] ) && strpos( $body['message'], 'rate limit' ) !== false ) {
+				return '🔴 Error 403: Límite de peticiones de la API de GitHub excedido temporalmente para esta IP.';
+			}
+			return '🔴 Error 403: Acceso prohibido. Verifica que el Token de Acceso sea válido y tenga permisos de lectura.';
+		}
+
+		return '🔴 Error HTTP ' . $code;
+	}
+
+	/**
+	 * Compara la versión local con la versión más reciente (tags) en GitHub.
+	 */
+	public function get_latest_github_version() {
+		$latest_version = get_transient( 'wpds_latest_github_version' );
+		if ( false !== $latest_version ) {
+			return $latest_version;
+		}
+
+		$url = 'https://api.github.com/repos/19webs/wp-document-signer-pro/tags';
+		$args = array(
+			'timeout'    => 5,
+			'headers'    => array(
+				'Accept'     => 'application/vnd.github.v3+json',
+				'User-Agent' => '19webs-Updater/' . WPDS_VERSION,
+			),
+		);
+
+		$options = get_option( 'wpds_settings' );
+		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
+		if ( ! empty( $token ) ) {
+			$args['headers']['Authorization'] = 'token ' . $token;
+		}
+
+		$response = wp_remote_get( $url, $args );
+
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+			return 'error_api_connection';
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		$tags = json_decode( $body, true );
+
+		if ( ! is_array( $tags ) || empty( $tags ) ) {
+			return 'error_api_connection';
+		}
+
+		$highest_version = '0.0.0';
+		foreach ( $tags as $tag ) {
+			if ( isset( $tag['name'] ) ) {
+				$tag_ver = ltrim( $tag['name'], 'v' );
+				if ( version_compare( $tag_ver, $highest_version, '>' ) ) {
+					$highest_version = $tag_ver;
+				}
+			}
+		}
+
+		if ( '0.0.0' !== $highest_version ) {
+			set_transient( 'wpds_latest_github_version', $highest_version, 6 * HOUR_IN_SECONDS );
+			return $highest_version;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Inyecta dinámicamente notificaciones de actualización nativa en WordPress desde GitHub.
+	 */
+	public function check_for_plugin_update( $transient ) {
+		if ( empty( $transient->checked ) ) {
+			return $transient;
+		}
+
+		$latest_version = $this->get_latest_github_version();
+		$current_version = WPDS_VERSION;
+
+		if ( $latest_version && 'error_api_connection' !== $latest_version && version_compare( $latest_version, $current_version, '>' ) ) {
+			$plugin_slug = 'wp-document-signer-pro/wp-document-signer.php';
+			
+			$response = new stdClass();
+			$response->slug        = 'wp-document-signer-pro';
+			$response->plugin      = $plugin_slug;
+			$response->new_version = $latest_version;
+			$response->url         = 'https://github.com/19webs/wp-document-signer-pro';
+			$response->package     = 'https://api.github.com/repos/19webs/wp-document-signer-pro/zipball/v' . $latest_version;
+
+			$transient->response[ $plugin_slug ] = $response;
+		}
+
+		return $transient;
+	}
+
+	/**
+	 * Intercepta las solicitudes HTTP nativas de WordPress de descarga de plugins.
+	 */
+	public function add_github_token_to_download( $args, $url ) {
+		if ( strpos( $url, 'api.github.com/repos/19webs/wp-document-signer-pro/zipball' ) !== false || strpos( $url, 'codeload.github.com/19webs/wp-document-signer-pro' ) !== false ) {
+			$options = get_option( 'wpds_settings' );
+			$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
+			if ( ! empty( $token ) ) {
+				$args['headers']['Authorization'] = 'token ' . $token;
+			}
+		}
+		return $args;
 	}
 
 	/**
@@ -745,6 +1072,10 @@ class WPDS_Admin_Settings {
 								<span class="dashicons dashicons-download" style="font-size: 16px; width: 16px; height: 16px; line-height: 16px; margin: 0;"></span> 
 								<?php esc_html_e( 'Descargar Historial Completo (.ZIP)', 'wp-doc-signer' ); ?>
 							</a>
+							<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&export_csv=1' ) ); ?>" class="button button-secondary" style="margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; height: 30px;">
+								<span class="dashicons dashicons-media-spreadsheet" style="font-size: 16px; width: 16px; height: 16px; line-height: 16px; margin: 0;"></span> 
+								<?php esc_html_e( 'Exportar Historial (.CSV)', 'wp-doc-signer' ); ?>
+							</a>
 						<?php endif; ?>
 					</div>
 
@@ -933,6 +1264,179 @@ class WPDS_Admin_Settings {
 			});
 		});
 		</script>
+		<?php
+	}
+
+	/**
+	 * Exporta el historial de firmas en formato CSV.
+	 */
+	public function handle_csv_export() {
+		if ( isset( $_GET['page'] ) && 'wpds-signed-docs' === $_GET['page'] && isset( $_GET['export_csv'] ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+			}
+
+			$signatures = get_option( 'wpds_signatures_log', array() );
+
+			header( 'Content-Type: text/csv; charset=utf-8' );
+			header( 'Content-Disposition: attachment; filename="historial-firmas-' . date( 'Y-m-d' ) . '.csv"' );
+
+			$output = fopen( 'php://output', 'w' );
+			
+			// UTF-8 BOM for Excel compatibility
+			fprintf( $output, chr(0xEF).chr(0xBB).chr(0xBF) );
+
+			// Cabeceras de las columnas
+			fputcsv( $output, array(
+				__( 'Fecha y Hora', 'wp-doc-signer' ),
+				__( 'Documento', 'wp-doc-signer' ),
+				__( 'Cliente', 'wp-doc-signer' ),
+				__( 'DNI / Identificación', 'wp-doc-signer' ),
+				__( 'Correo Electrónico', 'wp-doc-signer' ),
+				__( 'Teléfono', 'wp-doc-signer' ),
+				__( 'Consentimiento Imagen/Voz', 'wp-doc-signer' ),
+				__( 'Archivo PDF', 'wp-doc-signer' )
+			), ';' );
+
+			foreach ( $signatures as $sig ) {
+				$consent_text = '';
+				$consent_val = isset( $sig['consent_image'] ) ? intval( $sig['consent_image'] ) : -1;
+				if ( 1 === $consent_val ) {
+					$consent_text = __( 'SÍ', 'wp-doc-signer' );
+				} elseif ( 0 === $consent_val ) {
+					$consent_text = __( 'NO', 'wp-doc-signer' );
+				} else {
+					$consent_text = __( 'N/A', 'wp-doc-signer' );
+				}
+
+				fputcsv( $output, array(
+					isset( $sig['date'] ) ? $sig['date'] : '',
+					isset( $sig['document_title'] ) ? $sig['document_title'] : '',
+					isset( $sig['client_name'] ) ? $sig['client_name'] : '',
+					isset( $sig['client_dni'] ) ? $sig['client_dni'] : '',
+					isset( $sig['client_email'] ) ? $sig['client_email'] : '',
+					isset( $sig['client_phone'] ) ? $sig['client_phone'] : '',
+					$consent_text,
+					isset( $sig['filename'] ) ? $sig['filename'] : ''
+				), ';' );
+			}
+
+			fclose( $output );
+			exit;
+		}
+	}
+
+	/**
+	 * Renderizar la página dedicada para el Registro de Envíos de Correo.
+	 */
+	public function render_email_log_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// Opción para vaciar logs
+		if ( isset( $_POST['wpds_clear_logs'] ) ) {
+			check_admin_referer( 'wpds_clear_email_logs_action', 'wpds_clear_email_logs_nonce' );
+			update_option( 'wpds_email_logs', array() );
+			add_settings_error( 'wpds_messages', 'wpds_message', __( 'Se ha vaciado el historial de envíos correctamente.', 'wp-doc-signer' ), 'updated' );
+		}
+
+		settings_errors( 'wpds_messages' );
+
+		$logs = get_option( 'wpds_email_logs', array() );
+		$total_items = count( $logs );
+		$items_per_page = 20;
+		$current_page = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
+		$total_pages = ceil( $total_items / $items_per_page );
+
+		if ( ! empty( $logs ) ) {
+			$logs_sliced = array_slice( $logs, ( $current_page - 1 ) * $items_per_page, $items_per_page );
+		} else {
+			$logs_sliced = array();
+		}
+		?>
+		<div class="wrap wpds-admin-wrap">
+			<h1 class="wp-heading-inline" style="margin-bottom: 15px;"><?php esc_html_e( 'Registro de Envíos de Correo', 'wp-doc-signer' ); ?></h1>
+
+			<form method="post" action="" style="float: right; margin-top: 5px;" onsubmit="return confirm('¿Está seguro de que desea vaciar todos los registros del historial de correos? Esta acción no se puede deshacer.');">
+				<?php wp_nonce_field( 'wpds_clear_email_logs_action', 'wpds_clear_email_logs_nonce' ); ?>
+				<input type="submit" name="wpds_clear_logs" class="button button-secondary" value="<?php esc_attr_e( 'Vaciar Historial de Envíos', 'wp-doc-signer' ); ?>" />
+			</form>
+
+			<p class="description" style="margin-bottom: 20px;"><?php esc_html_e( 'Historial con el estado de las notificaciones enviadas por correo electrónico al firmar un acuerdo (últimos 150 registros).', 'wp-doc-signer' ); ?></p>
+
+			<div class="wpds-tablenav-flex" style="clear: both; margin-top: 15px;">
+				<div class="alignleft"></div>
+				<div class="tablenav-pages">
+					<?php if ( $total_pages > 1 ) : ?>
+						<span class="displaying-num" style="margin-right: 10px; font-style: italic; color: #646970;"><?php echo sprintf( _n( '%s elemento', '%s elementos', $total_items, 'wp-doc-signer' ), number_format_i18n( $total_items ) ); ?></span>
+						<?php
+						echo paginate_links( array(
+							'base'      => add_query_arg( 'paged', '%#%' ),
+							'format'    => '',
+							'total'     => $total_pages,
+							'current'   => $current_page,
+							'prev_text' => __( '&laquo; Anterior', 'wp-doc-signer' ),
+							'next_text' => __( 'Siguiente &raquo;', 'wp-doc-signer' ),
+						) );
+						?>
+					<?php else : ?>
+						<span class="displaying-num" style="font-style: italic; color: #646970;"><?php echo sprintf( _n( '%s elemento', '%s elementos', $total_items, 'wp-doc-signer' ), number_format_i18n( $total_items ) ); ?></span>
+					<?php endif; ?>
+				</div>
+			</div>
+
+			<div class="wpds-table-responsive">
+				<table class="wp-list-table widefat fixed striped table-view-list posts" style="box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-radius: 4px;">
+					<thead>
+						<tr>
+							<th scope="col" style="padding: 12px 10px; width: 180px; font-weight: 700;"><?php esc_html_e( 'Fecha y Hora', 'wp-doc-signer' ); ?></th>
+							<th scope="col" style="padding: 12px 10px; font-weight: 700;"><?php esc_html_e( 'Documento', 'wp-doc-signer' ); ?></th>
+							<th scope="col" style="padding: 12px 10px; width: 220px; font-weight: 700;"><?php esc_html_e( 'Destinatario', 'wp-doc-signer' ); ?></th>
+							<th scope="col" style="padding: 12px 10px; width: 130px; font-weight: 700;"><?php esc_html_e( 'Tipo', 'wp-doc-signer' ); ?></th>
+							<th scope="col" style="padding: 12px 10px; width: 120px; text-align: center; font-weight: 700;"><?php esc_html_e( 'Estado', 'wp-doc-signer' ); ?></th>
+							<th scope="col" style="padding: 12px 10px; width: 200px; font-weight: 700;"><?php esc_html_e( 'Observación / Detalle', 'wp-doc-signer' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php if ( empty( $logs_sliced ) ) : ?>
+							<tr>
+								<td colspan="6" style="text-align: center; padding: 40px; color: #646970; font-style: italic;">
+									<?php esc_html_e( 'No hay registros de envíos de correo actualmente.', 'wp-doc-signer' ); ?>
+								</td>
+							</tr>
+						<?php else : ?>
+							<?php foreach ( $logs_sliced as $log ) : ?>
+								<tr>
+									<td style="padding: 12px 10px; vertical-align: middle; color: #50575e;">
+										<?php echo esc_html( date( 'd/m/Y H:i:s', strtotime( $log['date'] ) ) ); ?>
+									</td>
+									<td style="padding: 12px 10px; vertical-align: middle; font-weight: 600; color: #1d2327;">
+										<?php echo esc_html( $log['document'] ); ?>
+									</td>
+									<td style="padding: 12px 10px; vertical-align: middle; color: #50575e;">
+										<?php echo esc_html( $log['recipient'] ); ?>
+									</td>
+									<td style="padding: 12px 10px; vertical-align: middle; color: #50575e;">
+										<?php echo esc_html( $log['type'] ); ?>
+									</td>
+									<td style="padding: 12px 10px; vertical-align: middle; text-align: center;">
+										<?php if ( __( 'Éxito', 'wp-doc-signer' ) === $log['status'] ) : ?>
+											<span style="background: #e6f4ea; color: #137333; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;"><?php echo esc_html( $log['status'] ); ?></span>
+										<?php else : ?>
+											<span style="background: #fce8e6; color: #c5221f; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;"><?php echo esc_html( $log['status'] ); ?></span>
+										<?php endif; ?>
+									</td>
+									<td style="padding: 12px 10px; vertical-align: middle; color: #d63638; font-size: 12px; font-style: italic;">
+										<?php echo esc_html( $log['error'] ); ?>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</tbody>
+				</table>
+			</div>
+		</div>
 		<?php
 	}
 }

@@ -1,7 +1,7 @@
 /**
  * Lógica del Frontend para el Wizard de Firma y Envío del Formulario WP Document Signer Pro.
  */
-document.addEventListener('DOMContentLoaded', function () {
+window.wpdsInitFrontendSigner = function () {
 	const form = document.getElementById('wpds-signing-form');
 	if (!form) return;
 
@@ -288,4 +288,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			modalCloseBtn.style.display = 'block';
 		}
 	}
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+	window.wpdsInitFrontendSigner();
 });

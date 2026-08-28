@@ -72,6 +72,15 @@ class WPDS_Mailer {
 
 		$client_mail_result = wp_mail( $client_email, $client_subject, $client_body, $headers, $attachments );
 
+		// Registrar log de cliente
+		$this->log_email(
+			$post->post_title,
+			$client_email,
+			__( 'Cliente', 'wp-doc-signer' ),
+			$client_mail_result ? __( 'Éxito', 'wp-doc-signer' ) : __( 'Fallido', 'wp-doc-signer' ),
+			$client_mail_result ? '' : __( 'La función wp_mail() devolvió false. Comprueba tu configuración SMTP.', 'wp-doc-signer' )
+		);
+
 		// 3. ENVÍO A LA ADMINISTRACIÓN
 		// Determinar correos de administración (verificar si hay override en el documento)
 		$admin_email_override = get_post_meta( $post->ID, '_wpds_email', true );
@@ -113,6 +122,16 @@ class WPDS_Mailer {
 		foreach ( $admin_emails_array as $single_admin_email ) {
 			if ( is_email( $single_admin_email ) ) {
 				$sent = wp_mail( $single_admin_email, $admin_subject, $admin_body, $admin_headers, $attachments );
+				
+				// Registrar log de admin
+				$this->log_email(
+					$post->post_title,
+					$single_admin_email,
+					__( 'Administración', 'wp-doc-signer' ),
+					$sent ? __( 'Éxito', 'wp-doc-signer' ) : __( 'Fallido', 'wp-doc-signer' ),
+					$sent ? '' : __( 'La función wp_mail() devolvió false. Comprueba tu configuración SMTP.', 'wp-doc-signer' )
+				);
+
 				if ( ! $sent ) {
 					$admin_mail_result = false;
 				}
@@ -142,5 +161,29 @@ class WPDS_Mailer {
 		);
 
 		return str_replace( array_keys( $replacements ), array_values( $replacements ), $text );
+	}
+
+	/**
+	 * Registra un envío de correo electrónico en los logs.
+	 */
+	private function log_email( $document_title, $recipient, $type, $status, $error_msg = '' ) {
+		$logs = get_option( 'wpds_email_logs', array() );
+		
+		$new_entry = array(
+			'date'      => current_time( 'mysql' ),
+			'document'  => $document_title,
+			'recipient' => $recipient,
+			'type'      => $type, // 'Cliente' o 'Administración'
+			'status'    => $status, // 'Éxito' o 'Fallido'
+			'error'     => $error_msg,
+		);
+
+		array_unshift( $logs, $new_entry );
+
+		if ( count( $logs ) > 150 ) {
+			$logs = array_slice( $logs, 0, 150 );
+		}
+
+		update_option( 'wpds_email_logs', $logs, false );
 	}
 }

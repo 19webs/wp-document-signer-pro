@@ -31,6 +31,9 @@ class WPDS_Shortcode_Renderer {
 	 */
 	private function __construct() {
 		add_shortcode( 'firmar_documento', array( $this, 'render_shortcode' ) );
+		add_action( 'wp_head', array( $this, 'add_noindex_to_shortcode_pages' ), 1 );
+		add_action( 'wp_ajax_wpds_verify_document_password', array( $this, 'handle_verify_password_ajax' ) );
+		add_action( 'wp_ajax_nopriv_wpds_verify_document_password', array( $this, 'handle_verify_password_ajax' ) );
 	}
 
 	/**
@@ -71,12 +74,149 @@ class WPDS_Shortcode_Renderer {
 		}
 
 		$status = get_post_meta( $post->ID, '_wpds_status', true );
-		if ( 'paused' === $status ) {
-			return '<div class="wpds-alert wpds-alert-warning">' . esc_html__( 'Este documento no está disponible para firma en este momento.', 'wp-doc-signer' ) . '</div>';
+		if ( 'publish' !== $post->post_status || 'paused' === $status ) {
+			return '';
 		}
 
 		// Encolar assets
 		$this->enqueue_frontend_assets( $post->ID );
+
+		$password_protect  = get_post_meta( $post->ID, '_wpds_password_protect', true );
+		$document_password = get_post_meta( $post->ID, '_wpds_document_password', true );
+
+		ob_start();
+		?>
+		<div id="wpds-document-signer-wrapper-<?php echo esc_attr( $post->ID ); ?>" class="wpds-document-signer-wrapper">
+			<?php if ( ! $password_protect || empty( $document_password ) ) : ?>
+				<?php echo $this->get_wizard_markup( $post->ID ); ?>
+			<?php else : ?>
+				<!-- Password Gate -->
+				<div class="wpds-password-gate-container" id="wpds-gate-<?php echo esc_attr( $post->ID ); ?>" style="max-width: 480px; margin: 40px auto; padding: 30px; border-radius: 12px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); font-family: 'Outfit', sans-serif; text-align: center; box-sizing: border-box;">
+					<div style="font-size: 44px; margin-bottom: 15px;">🔒</div>
+					<h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.3;"><?php esc_html_e( 'Acceso Protegido', 'wp-doc-signer' ); ?></h3>
+					<p style="margin: 0 0 20px 0; font-size: 14px; color: #64748b; line-height: 1.5;"><?php esc_html_e( 'Introduce la contraseña autorizada para firmar este documento.', 'wp-doc-signer' ); ?></p>
+					
+					<div class="wpds-input-group" style="margin-bottom: 15px; text-align: left;">
+						<input type="password" id="wpds-gate-password-<?php echo esc_attr( $post->ID ); ?>" placeholder="<?php esc_attr_e( 'Introduce la contraseña', 'wp-doc-signer' ); ?>" style="width: 100%; height: 42px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; box-sizing: border-box; transition: border-color 0.2s;" />
+					</div>
+					
+					<div class="wpds-input-group" style="margin-bottom: 20px; text-align: left; display: flex; align-items: center; gap: 8px; user-select: none;">
+						<input type="checkbox" id="wpds-gate-remember-<?php echo esc_attr( $post->ID ); ?>" checked style="margin: 0; width: 16px; height: 16px; border-radius: 4px; border: 1px solid #cbd5e1;" />
+						<label for="wpds-gate-remember-<?php echo esc_attr( $post->ID ); ?>" style="font-size: 13.5px; color: #475569; cursor: pointer;"><?php esc_html_e( 'Recordar en este dispositivo', 'wp-doc-signer' ); ?></label>
+					</div>
+
+					<button type="button" id="wpds-gate-submit-<?php echo esc_attr( $post->ID ); ?>" class="button" style="width: 100%; height: 42px; background: #0f172a; color: #ffffff; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+						<span><?php esc_html_e( 'Verificar y Entrar', 'wp-doc-signer' ); ?></span>
+					</button>
+
+					<div id="wpds-gate-error-<?php echo esc_attr( $post->ID ); ?>" style="display: none; margin-top: 12px; font-size: 13.5px; color: #ef4444; font-weight: 500;">
+						❌ <?php esc_html_e( 'Contraseña incorrecta. Por favor, inténtalo de nuevo.', 'wp-doc-signer' ); ?>
+					</div>
+				</div>
+
+				<!-- Script de control de contraseña y localStorage -->
+				<script>
+				jQuery(document).ready(function($) {
+					var docId = <?php echo intval( $post->ID ); ?>;
+					var savedPass = localStorage.getItem('wpds_doc_password_' + docId);
+
+					// Si hay contraseña guardada, intentar verificarla automáticamente
+					if (savedPass) {
+						verifyAndLoad(savedPass);
+					}
+
+					$('#wpds-gate-submit-' + docId).click(function() {
+						var pass = $('#wpds-gate-password-' + docId).val();
+						if (!pass) {
+							alert('Por favor, introduce una contraseña.');
+							return;
+						}
+						verifyAndLoad(pass);
+					});
+
+					$('#wpds-gate-password-' + docId).keypress(function(e) {
+						if (e.which == 13) {
+							$('#wpds-gate-submit-' + docId).click();
+						}
+					});
+
+					function verifyAndLoad(pass) {
+						var $btn = $('#wpds-gate-submit-' + docId);
+						var $error = $('#wpds-gate-error-' + docId);
+						
+						$btn.prop('disabled', true).text('Verificando...');
+						$error.hide();
+
+						$.post(ajaxurl || '/wp-admin/admin-ajax.php', {
+							action: 'wpds_verify_document_password',
+							document_id: docId,
+							password: pass
+						}, function(response) {
+							if (response.success) {
+								if ($('#wpds-gate-remember-' + docId).is(':checked')) {
+									localStorage.setItem('wpds_doc_password_' + docId, pass);
+								} else {
+									localStorage.removeItem('wpds_doc_password_' + docId);
+								}
+								// Inyectar el HTML del wizard y re-inicializar scripts
+								$('#wpds-document-signer-wrapper-' + docId).html(response.data.html);
+								if (typeof window.wpdsInitFrontendSigner === 'function') {
+									window.wpdsInitFrontendSigner();
+								}
+							} else {
+								$error.text(response.data.message || 'Contraseña incorrecta.').show();
+								localStorage.removeItem('wpds_doc_password_' + docId);
+							}
+							$btn.prop('disabled', false).text('Verificar y Entrar');
+						}).fail(function() {
+							$error.text('Error de red. Inténtalo de nuevo.').show();
+							$btn.prop('disabled', false).text('Verificar y Entrar');
+						});
+					}
+				});
+				</script>
+			<?php endif; ?>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Verificar la contraseña del documento y devolver el marcado HTML del wizard.
+	 */
+	public function handle_verify_password_ajax() {
+		$document_id = isset( $_POST['document_id'] ) ? intval( $_POST['document_id'] ) : 0;
+		$password    = isset( $_POST['password'] ) ? sanitize_text_field( $_POST['password'] ) : '';
+
+		if ( ! $document_id ) {
+			wp_send_json_error( array( 'message' => __( 'Documento no válido.', 'wp-doc-signer' ) ) );
+		}
+
+		$expected_password = get_post_meta( $document_id, '_wpds_document_password', true );
+		$is_protected      = get_post_meta( $document_id, '_wpds_password_protect', true );
+
+		if ( $is_protected && $password !== $expected_password ) {
+			wp_send_json_error( array( 'message' => __( 'Contraseña incorrecta.', 'wp-doc-signer' ) ) );
+		}
+
+		// Generar el marcado HTML
+		$html = $this->get_wizard_markup( $document_id );
+
+		wp_send_json_success( array( 'html' => $html ) );
+	}
+
+	/**
+	 * Obtener el marcado HTML del wizard de firmas.
+	 */
+	public function get_wizard_markup( $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post || 'publish' !== $post->post_status ) {
+			return '';
+		}
+		$status = get_post_meta( $post_id, '_wpds_status', true );
+		if ( 'paused' === $status ) {
+			return '';
+		}
 
 		// Obtener metadatos del establecimiento
 		$est_titular   = get_post_meta( $post->ID, '_wpds_est_titular', true );
@@ -513,5 +653,28 @@ class WPDS_Shortcode_Renderer {
 		);
 
 		wp_localize_script( 'wpds-frontend-js', 'wpds_vars', $local_vars );
+	}
+
+	/**
+	 * Añade la etiqueta robots noindex en la cabecera si la página actual contiene el shortcode de un documento marcado para desindexar.
+	 */
+	public function add_noindex_to_shortcode_pages() {
+		if ( is_singular() ) {
+			$post = get_post();
+			if ( $post && ! empty( $post->post_content ) ) {
+				// Buscar todas las ocurrencias del shortcode [firmar_documento id="..."]
+				if ( preg_match_all( '/\[firmar_documento\s+[^\]]*id=["\'](\d+)["\']/i', $post->post_content, $matches ) ) {
+					foreach ( $matches[1] as $doc_id ) {
+						$noindex = get_post_meta( intval( $doc_id ), '_wpds_noindex', true );
+						// Si está configurado para desindexar (o por defecto si es vacío/nuevo)
+						if ( '' === $noindex || 1 === intval( $noindex ) ) {
+							echo "\n" . '<!-- WP Document Signer: Prevención de indexación de buscadores -->' . "\n";
+							echo '<meta name="robots" content="noindex, nofollow, noarchive" />' . "\n\n";
+							break; // Solo necesitamos imprimirlo una vez
+						}
+					}
+				}
+			}
+		}
 	}
 }

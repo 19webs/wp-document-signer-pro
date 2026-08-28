@@ -41,6 +41,8 @@ class WPDS_CPT_Documents {
 		// Registrar acciones AJAX para vistas previas (evita el retorno de "0")
 		add_action( 'wp_ajax_wpds_preview_form', array( $this, 'handle_preview_form' ) );
 		add_action( 'wp_ajax_wpds_preview_pdf', array( $this, 'handle_preview_pdf' ) );
+		add_action( 'wp_ajax_wpds_toggle_document_status', array( $this, 'handle_toggle_document_status' ) );
+		add_action( 'admin_footer', array( $this, 'render_toggle_status_js' ) );
 	}
 
 	/**
@@ -133,6 +135,12 @@ class WPDS_CPT_Documents {
 		}
 
 		$notification_email = get_post_meta( $post->ID, '_wpds_email', true );
+		$password_protect   = get_post_meta( $post->ID, '_wpds_password_protect', true );
+		$document_password  = get_post_meta( $post->ID, '_wpds_document_password', true );
+		$noindex            = get_post_meta( $post->ID, '_wpds_noindex', true );
+		if ( '' === $noindex ) {
+			$noindex = 1;
+		}
 		
 		// Crear enlaces de vista previa
 		$preview_form_url = admin_url( 'admin-ajax.php?action=wpds_preview_form&post_id=' . $post->ID . '&nonce=' . wp_create_nonce( 'wpds_preview_form_' . $post->ID ) );
@@ -157,6 +165,41 @@ class WPDS_CPT_Documents {
 				[firmar_documento id="<?php echo esc_attr( $post->ID ); ?>"]
 			</code>
 		</div>
+
+		<hr style="border: 0; border-top: 1px solid #dfdfdf; margin: 15px 0;" />
+
+		<div class="wpds-meta-group" style="margin-bottom: 15px;">
+			<label style="display: block; font-weight: bold; margin-bottom: 5px;">
+				<input type="checkbox" name="wpds_password_protect" id="wpds_password_protect" value="1" <?php checked( 1, $password_protect ); ?> />
+				<?php esc_html_e( 'Proteger con contraseña', 'wp-doc-signer' ); ?>
+			</label>
+			<div id="wpds-password-input-wrapper" style="margin-top: 8px; <?php echo $password_protect ? '' : 'display: none;'; ?>">
+				<input type="text" name="wpds_document_password" id="wpds_document_password" class="widefat" value="<?php echo esc_attr( $document_password ); ?>" placeholder="<?php esc_attr_e( 'Ingresa la contraseña...', 'wp-doc-signer' ); ?>" />
+				<p class="description" style="font-size: 11px; margin-top: 4px;"><?php esc_html_e( 'Los clientes deberán introducir esta contraseña en su dispositivo antes de poder firmar.', 'wp-doc-signer' ); ?></p>
+			</div>
+		</div>
+
+		<hr style="border: 0; border-top: 1px solid #dfdfdf; margin: 15px 0;" />
+
+		<div class="wpds-meta-group" style="margin-bottom: 15px;">
+			<label style="display: block; font-weight: bold; margin-bottom: 5px;">
+				<input type="checkbox" name="wpds_noindex" id="wpds_noindex" value="1" <?php checked( 1, $noindex ); ?> />
+				<?php esc_html_e( 'Desindexar de buscadores', 'wp-doc-signer' ); ?>
+			</label>
+			<p class="description" style="font-size: 11px; margin-top: 4px;"><?php esc_html_e( 'Añade la etiqueta robots noindex en cualquier página que muestre este formulario para evitar que aparezca en Google.', 'wp-doc-signer' ); ?></p>
+		</div>
+
+		<script>
+		jQuery(document).ready(function($) {
+			$('#wpds_password_protect').change(function() {
+				if ($(this).is(':checked')) {
+					$('#wpds-password-input-wrapper').slideDown(200);
+				} else {
+					$('#wpds-password-input-wrapper').slideUp(200);
+				}
+			});
+		});
+		</script>
 
 		<hr style="border: 0; border-top: 1px solid #dfdfdf; margin: 15px 0;" />
 
@@ -244,6 +287,17 @@ class WPDS_CPT_Documents {
 		if ( isset( $_POST['wpds_email'] ) ) {
 			update_post_meta( $post_id, '_wpds_email', sanitize_email( $_POST['wpds_email'] ) );
 		}
+
+		// Guardar contraseña y protección
+		$password_protect = isset( $_POST['wpds_password_protect'] ) ? 1 : 0;
+		update_post_meta( $post_id, '_wpds_password_protect', $password_protect );
+
+		if ( isset( $_POST['wpds_document_password'] ) ) {
+			update_post_meta( $post_id, '_wpds_document_password', sanitize_text_field( $_POST['wpds_document_password'] ) );
+		}
+
+		$noindex = isset( $_POST['wpds_noindex'] ) ? 1 : 0;
+		update_post_meta( $post_id, '_wpds_noindex', $noindex );
 
 		// Guardar Metadatos del Establecimiento y del RGPD/Consentimiento
 		$fields = array(
@@ -412,11 +466,15 @@ class WPDS_CPT_Documents {
 		switch ( $column ) {
 			case 'wpds_status':
 				$status = get_post_meta( $post_id, '_wpds_status', true );
-				if ( 'paused' === $status ) {
-					echo '<span class="post-state" style="color:#d63638; font-weight:bold;">' . esc_html__( 'Pausado', 'wp-doc-signer' ) . '</span>';
-				} else {
-					echo '<span class="post-state" style="color:#2271b1; font-weight:bold;">' . esc_html__( 'Activo', 'wp-doc-signer' ) . '</span>';
-				}
+				$is_paused = ( 'paused' === $status );
+				$label = $is_paused ? __( 'Pausado', 'wp-doc-signer' ) : __( 'Activo', 'wp-doc-signer' );
+				$color = $is_paused ? '#d63638' : '#2271b1';
+				$nonce = wp_create_nonce( 'wpds_toggle_status_' . $post_id );
+				
+				echo '<a href="#" class="wpds-toggle-status" data-post-id="' . esc_attr( $post_id ) . '" data-nonce="' . esc_attr( $nonce ) . '" style="color:' . esc_attr( $color ) . '; font-weight:bold; text-decoration:none; display:inline-flex; align-items:center; gap:4px; outline:none; shadow:none;" title="' . esc_attr__( 'Haga clic para cambiar el estado', 'wp-doc-signer' ) . '">';
+				echo '<span class="dashicons ' . ( $is_paused ? 'dashicons-controls-pause' : 'dashicons-yes' ) . '" style="font-size:16px; width:16px; height:16px; line-height:16px;"></span>';
+				echo '<span class="status-label">' . esc_html( $label ) . '</span>';
+				echo '</a>';
 				break;
 
 			case 'wpds_shortcode':
@@ -552,5 +610,84 @@ class WPDS_CPT_Documents {
 		$pdf_engine = WPDS_PDF_Engine::get_instance();
 		$pdf_engine->generate_preview_pdf( $post_id, $form_data );
 		exit;
+	}
+
+	/**
+	 * Maneja la acción AJAX para alternar el estado del documento (Activo/Pausado).
+	 */
+	public function handle_toggle_document_status() {
+		$post_id = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
+		$nonce   = isset( $_POST['nonce'] ) ? sanitize_text_field( $_POST['nonce'] ) : '';
+
+		if ( ! wp_verify_nonce( $nonce, 'wpds_toggle_status_' . $post_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Acceso denegado o sesión expirada.', 'wp-doc-signer' ) ) );
+		}
+
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'No tienes permisos suficientes.', 'wp-doc-signer' ) ) );
+		}
+
+		$current_status = get_post_meta( $post_id, '_wpds_status', true );
+		$new_status = ( 'paused' === $current_status ) ? 'active' : 'paused';
+		
+		update_post_meta( $post_id, '_wpds_status', $new_status );
+
+		$is_paused = ( 'paused' === $new_status );
+		$label = $is_paused ? __( 'Pausado', 'wp-doc-signer' ) : __( 'Activo', 'wp-doc-signer' );
+		$color = $is_paused ? '#d63638' : '#2271b1';
+		$dashicon = $is_paused ? 'dashicons-controls-pause' : 'dashicons-yes';
+		$new_nonce = wp_create_nonce( 'wpds_toggle_status_' . $post_id );
+
+		wp_send_json_success( array(
+			'label'    => $label,
+			'color'    => $color,
+			'dashicon' => $dashicon,
+			'nonce'    => $new_nonce,
+		) );
+	}
+
+	/**
+	 * Inserta el código JavaScript en el footer de administración para manejar el AJAX del listado.
+	 */
+	public function render_toggle_status_js() {
+		$screen = get_current_screen();
+		if ( ! $screen || 'edit-wp_documento' !== $screen->id ) {
+			return;
+		}
+		?>
+		<script>
+		jQuery(document).ready(function($) {
+			$(document).on('click', '.wpds-toggle-status', function(e) {
+				e.preventDefault();
+				var $btn = $(this);
+				var postId = $btn.data('post-id');
+				var nonce = $btn.data('nonce');
+				
+				$btn.css('opacity', '0.5');
+
+				$.post(ajaxurl, {
+					action: 'wpds_toggle_document_status',
+					post_id: postId,
+					nonce: nonce
+				}, function(response) {
+					$btn.css('opacity', '1');
+					if (response.success) {
+						$btn.data('nonce', response.data.nonce);
+						$btn.css('color', response.data.color);
+						$btn.find('.status-label').text(response.data.label);
+						$btn.find('.dashicons')
+							.removeClass('dashicons-yes dashicons-controls-pause')
+							.addClass(response.data.dashicon);
+					} else {
+						alert(response.data.message || 'Error al cambiar el estado.');
+					}
+				}).fail(function() {
+					$btn.css('opacity', '1');
+					alert('Error de conexión.');
+				});
+			});
+		});
+		</script>
+		<?php
 	}
 }
