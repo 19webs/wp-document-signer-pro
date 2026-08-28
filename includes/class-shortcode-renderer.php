@@ -75,7 +75,9 @@ class WPDS_Shortcode_Renderer {
 
 		$status = get_post_meta( $post->ID, '_wpds_status', true );
 		if ( 'publish' !== $post->post_status || 'paused' === $status ) {
-			return '';
+			return '<div class="wpds-alert wpds-alert-warning" style="margin: 20px 0; padding: 15px 20px; border-left: 4px solid #f59e0b; background-color: #fef3c7; color: #b45309; border-radius: 6px; font-family: system-ui, -apple-system, sans-serif; font-size: 14.5px; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">' .
+				'<span>⚠️</span> <span>' . esc_html__( 'El documento no está activo en este momento.', 'wp-doc-signer' ) . '</span>' .
+				'</div>';
 		}
 
 		// Encolar assets
@@ -147,12 +149,12 @@ class WPDS_Shortcode_Renderer {
 						$btn.prop('disabled', true).text('Verificando...');
 						$error.hide();
 
-						$.post(ajaxurl || '/wp-admin/admin-ajax.php', {
+						$.post('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
 							action: 'wpds_verify_document_password',
 							document_id: docId,
 							password: pass
 						}, function(response) {
-							if (response.success) {
+							if (response && response.success) {
 								if ($('#wpds-gate-remember-' + docId).is(':checked')) {
 									localStorage.setItem('wpds_doc_password_' + docId, pass);
 								} else {
@@ -164,12 +166,13 @@ class WPDS_Shortcode_Renderer {
 									window.wpdsInitFrontendSigner();
 								}
 							} else {
-								$error.text(response.data.message || 'Contraseña incorrecta.').show();
+								var errMsg = (response && response.data && response.data.message) ? response.data.message : 'Contraseña incorrecta.';
+								$error.text(errMsg).show();
 								localStorage.removeItem('wpds_doc_password_' + docId);
 							}
 							$btn.prop('disabled', false).text('Verificar y Entrar');
-						}).fail(function() {
-							$error.text('Error de red. Inténtalo de nuevo.').show();
+						}, 'json').fail(function() {
+							$error.text('Error de red o contraseña inválida. Inténtalo de nuevo.').show();
 							$btn.prop('disabled', false).text('Verificar y Entrar');
 						});
 					}
