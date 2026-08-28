@@ -42,6 +42,9 @@ class WPDS_Mailer {
 	public function send_emails( $post, $form_data, $pdf_path ) {
 		// Obtener ajustes globales
 		$settings = get_option( 'wpds_settings' );
+		if ( ! is_array( $settings ) ) {
+			$settings = array();
+		}
 
 		// 1. Configurar Remitente
 		$sender_name  = ! empty( $settings['sender_name'] ) ? $settings['sender_name'] : get_bloginfo( 'name' );

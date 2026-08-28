@@ -221,6 +221,9 @@ class WPDS_PDF_Engine {
 
 		// Cargar marca de agua desde los ajustes o fallback
 		$options = get_option( 'wpds_settings' );
+		if ( ! is_array( $options ) ) {
+			$options = array();
+		}
 		$watermark_url = isset( $options['watermark_url'] ) ? $options['watermark_url'] : '';
 		
 		$watermark_path = '';

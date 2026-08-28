@@ -84,6 +84,14 @@ class WPDS_Admin_Settings {
 	}
 
 	/**
+	 * Obtiene las opciones de configuración de forma segura asegurando que siempre retorne un array.
+	 */
+	private function get_wpds_settings() {
+		$options = get_option( 'wpds_settings' );
+		return is_array( $options ) ? $options : array();
+	}
+
+	/**
 	 * Cargar assets de administración.
 	 */
 	public function enqueue_admin_assets( $hook ) {
@@ -268,39 +276,39 @@ class WPDS_Admin_Settings {
 	}
 
 	public function render_admin_emails_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['admin_emails'] ) ? $options['admin_emails'] : get_bloginfo( 'admin_email' );
 		echo '<input type="text" name="wpds_settings[admin_emails]" class="large-text" value="' . esc_attr( $value ) . '" placeholder="admin@tuservicio.com, copias@tuservicio.com" />';
 		echo '<p class="description">' . esc_html__( 'Ingresa los correos de administración separados por comas.', 'wp-doc-signer' ) . '</p>';
 	}
 
 	public function render_sender_name_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['sender_name'] ) ? $options['sender_name'] : get_bloginfo( 'name' );
 		echo '<input type="text" name="wpds_settings[sender_name]" class="regular-text" value="' . esc_attr( $value ) . '" />';
 	}
 
 	public function render_sender_email_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['sender_email'] ) ? $options['sender_email'] : get_bloginfo( 'admin_email' );
 		echo '<input type="email" name="wpds_settings[sender_email]" class="regular-text" value="' . esc_attr( $value ) . '" />';
 		echo '<p class="description" style="color: #b32d2e; font-weight: 500;">' . esc_html__( '⚠️ IMPORTANTE: Utiliza un correo con el mismo dominio de tu web (ej. noreply@saraperezstudio.com o info@saraperezstudio.com) en lugar de una dirección de Gmail, Hotmail o Yahoo. Si envías correos desde tu servidor simulando ser de @gmail.com, Google bloqueará la entrega inmediatamente debido a políticas SPF y DMARC.', 'wp-doc-signer' ) . '</p>';
 	}
 
 	public function render_client_subject_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['client_subject'] ) ? $options['client_subject'] : __( 'Tu copia de: {nombre_documento}', 'wp-doc-signer' );
 		echo '<input type="text" name="wpds_settings[client_subject]" class="large-text" value="' . esc_attr( $value ) . '" />';
 	}
 
 	public function render_admin_subject_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['admin_subject'] ) ? $options['admin_subject'] : __( 'Firmado: {nombre_documento} - {nombre_cliente}', 'wp-doc-signer' );
 		echo '<input type="text" name="wpds_settings[admin_subject]" class="large-text" value="' . esc_attr( $value ) . '" />';
 	}
 
 	public function render_client_body_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['client_body'] ) ? $options['client_body'] : __( "<p>Hola {nombre_cliente},</p>\n<p>Gracias por tu firma. Adjunto a este correo encontrarás la copia en PDF firmada digitalmente de tu documento: <strong>{nombre_documento}</strong>.</p>\n<p>Saludos cordiales.</p>", 'wp-doc-signer' );
 
 		$settings = array(
@@ -313,7 +321,7 @@ class WPDS_Admin_Settings {
 	}
 
 	public function render_watermark_url_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['watermark_url'] ) ? $options['watermark_url'] : '';
 		?>
 		<div class="wpds-media-uploader-row">
@@ -343,18 +351,14 @@ class WPDS_Admin_Settings {
 	}
 
 	public function render_save_local_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$checked = isset( $options['save_local'] ) ? $options['save_local'] : 1;
 		echo '<label><input type="checkbox" name="wpds_settings[save_local]" value="1" ' . checked( 1, $checked, false ) . ' /> ' . esc_html__( 'Guardar archivos firmados en la carpeta del servidor /wp-content/uploads/firmas-pdf/', 'wp-doc-signer' ) . '</label>';
 		echo '<p class="description" style="color: #646970;">' . esc_html__( 'Los archivos se protegerán automáticamente mediante restricciones de acceso .htaccess en servidores basados en Apache.', 'wp-doc-signer' ) . '</p>';
 	}
 
-	public function render_github_section_description() {
-		echo '<p class="description">' . esc_html__( 'Configura las credenciales de GitHub para conectar tu instalación con las actualizaciones automáticas.', 'wp-doc-signer' ) . '</p>';
-	}
-
 	public function render_github_token_field() {
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$value = isset( $options['github_token'] ) ? $options['github_token'] : '';
 		echo '<input type="password" name="wpds_settings[github_token]" class="regular-text" value="' . esc_attr( $value ) . '" placeholder="ghp_..." />';
 		echo '<p class="description">' . esc_html__( 'Genera tu token de acceso (PAT) clásico en GitHub con permisos de "repo" para repositorios privados.', 'wp-doc-signer' ) . '</p>';
@@ -721,7 +725,7 @@ class WPDS_Admin_Settings {
 			),
 		);
 
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
 		if ( ! empty( $token ) ) {
 			$args['headers']['Authorization'] = 'token ' . $token;
@@ -771,7 +775,7 @@ class WPDS_Admin_Settings {
 			),
 		);
 
-		$options = get_option( 'wpds_settings' );
+		$options = $this->get_wpds_settings();
 		$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
 		if ( ! empty( $token ) ) {
 			$args['headers']['Authorization'] = 'token ' . $token;
@@ -840,7 +844,7 @@ class WPDS_Admin_Settings {
 	 */
 	public function add_github_token_to_download( $args, $url ) {
 		if ( strpos( $url, 'api.github.com/repos/19webs/wp-document-signer-pro/zipball' ) !== false || strpos( $url, 'codeload.github.com/19webs/wp-document-signer-pro' ) !== false ) {
-			$options = get_option( 'wpds_settings' );
+			$options = $this->get_wpds_settings();
 			$token = isset( $options['github_token'] ) ? sanitize_text_field( $options['github_token'] ) : '';
 			if ( ! empty( $token ) ) {
 				$args['headers']['Authorization'] = 'token ' . $token;

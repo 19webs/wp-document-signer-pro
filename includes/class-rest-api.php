@@ -140,6 +140,9 @@ class WPDS_REST_API {
 
 			// Borrar el archivo local si el usuario configuró no guardar PDF en el servidor
 			$settings = get_option( 'wpds_settings' );
+			if ( ! is_array( $settings ) ) {
+				$settings = array();
+			}
 			$save_local = isset( $settings['save_local'] ) ? intval( $settings['save_local'] ) : 1;
 			if ( 0 === $save_local && file_exists( $pdf_path ) ) {
 				unlink( $pdf_path );
