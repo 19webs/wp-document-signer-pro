@@ -411,12 +411,12 @@ class WPDS_Shortcode_Renderer {
 					<div class="wpds-identification-grid">
 						<div class="wpds-id-card wpds-establishment-card">
 							<h4 class="wpds-card-title"><?php esc_html_e( 'RESPONSABLE / ESTABLECIMIENTO', 'wp-doc-signer' ); ?></h4>
-							<p><strong><?php echo esc_html( $est_titular ); ?></strong></p>
+							<p><strong><?php echo sprintf( esc_html__( 'Responsable: %s', 'wp-doc-signer' ), esc_html( $est_titular ) ); ?></strong></p>
 							<p><?php echo sprintf( esc_html__( 'NIF: %s', 'wp-doc-signer' ), esc_html( $est_nif ) ); ?></p>
 							<p><?php echo sprintf( esc_html__( 'Nombre comercial: %s', 'wp-doc-signer' ), esc_html( $est_comercial ) ); ?></p>
-							<p><?php echo esc_html( $est_address ); ?></p>
-							<p><?php echo esc_html( $est_email ); ?></p>
-							<p><?php echo esc_html( $est_phone ); ?></p>
+							<p><?php echo sprintf( esc_html__( 'Dirección: %s', 'wp-doc-signer' ), esc_html( $est_address ) ); ?></p>
+							<p><?php echo sprintf( esc_html__( 'Email: %s', 'wp-doc-signer' ), esc_html( $est_email ) ); ?></p>
+							<p><?php echo sprintf( esc_html__( 'Teléfono: %s', 'wp-doc-signer' ), esc_html( $est_phone ) ); ?></p>
 						</div>
 
 						<div class="wpds-id-card wpds-client-card">
@@ -484,7 +484,7 @@ class WPDS_Shortcode_Renderer {
 					<div class="wpds-navigation-row">
 						<button type="button" id="wpds-next-step-btn" class="wpds-nav-button wpds-button-next">
 							<?php esc_html_e( 'Continuar a Protección de Datos', 'wp-doc-signer' ); ?>
-							<span class="dashicons dashicons-arrow-right-alt" style="vertical-align: middle; margin-left: 5px;"></span>
+							<span style="vertical-align: middle; margin-left: 5px; font-weight: bold;">&rarr;</span>
 						</button>
 					</div>
 				</div>
@@ -598,7 +598,7 @@ class WPDS_Shortcode_Renderer {
 					<!-- Botones navegación -->
 					<div class="wpds-navigation-row wpds-two-buttons">
 						<button type="button" id="wpds-prev-step-btn" class="wpds-nav-button wpds-button-prev">
-							<span class="dashicons dashicons-arrow-left-alt" style="vertical-align: middle; margin-right: 5px;"></span>
+							<span style="vertical-align: middle; margin-right: 5px; font-weight: bold;">&larr;</span>
 							<?php esc_html_e( 'Volver a Condiciones', 'wp-doc-signer' ); ?>
 						</button>
 						<button type="submit" id="wpds-submit-btn" class="wpds-submit-button">

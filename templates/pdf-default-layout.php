@@ -283,12 +283,12 @@
 			<tbody>
 				<tr>
 					<td>
-						<strong><?php echo esc_html( $est_titular ); ?></strong><br />
+						<strong><?php echo sprintf( esc_html__( 'Responsable: %s', 'wp-doc-signer' ), esc_html( $est_titular ) ); ?></strong><br />
 						<?php echo sprintf( esc_html__( 'NIF: %s', 'wp-doc-signer' ), esc_html( $est_nif ) ); ?><br />
 						<?php echo sprintf( esc_html__( 'Nombre comercial: %s', 'wp-doc-signer' ), esc_html( $est_comercial ) ); ?><br />
-						<?php echo esc_html( $est_address ); ?><br />
-						<?php echo esc_html( $est_email ); ?><br />
-						<?php echo esc_html( $est_phone ); ?>
+						<?php echo sprintf( esc_html__( 'Dirección: %s', 'wp-doc-signer' ), esc_html( $est_address ) ); ?><br />
+						<?php echo sprintf( esc_html__( 'Email: %s', 'wp-doc-signer' ), esc_html( $est_email ) ); ?><br />
+						<?php echo sprintf( esc_html__( 'Teléfono: %s', 'wp-doc-signer' ), esc_html( $est_phone ) ); ?>
 					</td>
 					<td>
 						<table style="width: 100%; border: none; border-collapse: collapse;">
