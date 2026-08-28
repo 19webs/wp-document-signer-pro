@@ -100,3 +100,90 @@
     display: flex;
     align-items: center;
 }
+
+/* Envoltorio responsivo para deslizar tablas anchas en móvil */
+.wpds-table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    border: 1px solid #c3c4c7;
+    background: #fff;
+}
+
+.wpds-table-responsive table {
+    border: 0 !important;
+    margin: 0 !important;
+}
+
+/* Estilos limpios de búsqueda sin caja blanca */
+.wpds-search-form-container input[type="search"] {
+    border: 1px solid #8c8f94 !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+    border-radius: 4px !important;
+    padding: 0 10px !important;
+    background: #fff !important;
+    font-size: 13px !important;
+}
+
+.wpds-search-form-container input[type="search"]:focus {
+    border-color: #2271b1 !important;
+    box-shadow: 0 0 0 1px #2271b1 !important;
+    outline: 2px solid transparent !important;
+}
+
+/* Adaptabilidad a dispositivos móviles (WordPress admin responsive breakpoint) */
+@media (max-width: 782px) {
+    .wpds-tablenav-flex {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    
+    .wpds-tablenav-flex .alignleft {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    
+    .wpds-tablenav-flex .alignleft select,
+    .wpds-tablenav-flex .alignleft input[type="submit"] {
+        width: 100% !important;
+        margin: 0 !important;
+        height: 36px !important;
+        line-height: 34px !important;
+    }
+    
+    .wpds-tablenav-flex .alignleft a.button-secondary {
+        width: 100% !important;
+        margin-left: 0 !important;
+        justify-content: center !important;
+        height: 36px !important;
+        line-height: 34px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    
+    .wpds-tablenav-flex .tablenav-pages {
+        align-self: flex-start !important;
+    }
+    
+    .wpds-search-form-container {
+        justify-content: stretch !important;
+        margin-bottom: 10px !important;
+    }
+    
+    .wpds-search-form-container > div {
+        width: 100% !important;
+    }
+    
+    .wpds-search-form-container input[type="search"] {
+        flex-grow: 1 !important;
+        height: 36px !important;
+    }
+    
+    .wpds-search-form-container button {
+        height: 36px !important;
+    }
+}
