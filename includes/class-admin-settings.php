@@ -36,6 +36,7 @@ class WPDS_Admin_Settings {
 		add_action( 'admin_init', array( $this, 'handle_pdf_view' ) );
 		add_action( 'admin_init', array( $this, 'handle_file_delete' ) );
 		add_action( 'admin_init', array( $this, 'handle_bulk_actions' ) );
+		add_action( 'admin_init', array( $this, 'handle_resend_email' ) );
 		add_action( 'admin_init', array( $this, 'handle_force_update_check' ) );
 		add_action( 'admin_init', array( $this, 'handle_csv_export' ) );
 		add_action( 'wp_ajax_wpds_ajax_check_update', array( $this, 'handle_ajax_check_update' ) );
@@ -480,6 +481,47 @@ class WPDS_Admin_Settings {
 	}
 
 	/**
+	 * Maneja la acción de reenviar correos desde la tabla de documentos firmados.
+	 */
+	public function handle_resend_email() {
+		if ( isset( $_GET['page'] ) && 'wpds-signed-docs' === $_GET['page'] && ( isset( $_GET['resend_client'] ) || isset( $_GET['resend_admin'] ) ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_die( esc_html__( 'Acceso denegado.', 'wp-doc-signer' ) );
+			}
+
+			$filename     = isset( $_GET['resend_client'] ) ? sanitize_file_name( $_GET['resend_client'] ) : sanitize_file_name( $_GET['resend_admin'] );
+			$is_client    = isset( $_GET['resend_client'] );
+			$nonce_action = $is_client ? 'wpds_resend_client_' . $filename : 'wpds_resend_admin_' . $filename;
+
+			if ( ! isset( $_GET['wpds_resend_nonce'] ) || ! wp_verify_nonce( $_GET['wpds_resend_nonce'], $nonce_action ) ) {
+				wp_die( esc_html__( 'Enlace de seguridad no válido o caducado.', 'wp-doc-signer' ) );
+			}
+
+			$custom_email = isset( $_GET['email'] ) ? sanitize_email( $_GET['email'] ) : '';
+			$mailer       = WPDS_Mailer::get_instance();
+
+			if ( $is_client ) {
+				$result = $mailer->resend_client_email( $filename, $custom_email );
+				if ( is_wp_error( $result ) ) {
+					$redirect_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resend_error=' . urlencode( $result->get_error_message() ) );
+				} else {
+					$redirect_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resent_client=' . urlencode( $result ) );
+				}
+			} else {
+				$result = $mailer->resend_admin_email( $filename, $custom_email );
+				if ( is_wp_error( $result ) ) {
+					$redirect_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resend_error=' . urlencode( $result->get_error_message() ) );
+				} else {
+					$redirect_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resent_admin=' . urlencode( $result ) );
+				}
+			}
+
+			wp_redirect( $redirect_url );
+			exit;
+		}
+	}
+
+	/**
 	 * Maneja las acciones en lote (descarga ZIP y eliminación múltiple).
 	 */
 	public function handle_bulk_actions() {
@@ -856,10 +898,15 @@ class WPDS_Admin_Settings {
 			<?php
 		} else {
 			foreach ( $files_sliced as $file_path ) {
-				$filename = basename( $file_path );
-				$file_url      = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) );
-				$download_url  = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) . '&download=1' );
-				$del_url       = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&delete_file=' . urlencode( $filename ) . '&wpds_del_nonce=' . wp_create_nonce( 'wpds_delete_file_action_' . $filename ) );
+				$filename          = basename( $file_path );
+				$file_url          = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) );
+				$download_url      = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) . '&download=1' );
+				$del_url           = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&delete_file=' . urlencode( $filename ) . '&wpds_del_nonce=' . wp_create_nonce( 'wpds_delete_file_action_' . $filename ) );
+				$resend_client_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resend_client=' . urlencode( $filename ) . '&wpds_resend_nonce=' . wp_create_nonce( 'wpds_resend_client_' . $filename ) );
+				$resend_admin_url  = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resend_admin=' . urlencode( $filename ) . '&wpds_resend_nonce=' . wp_create_nonce( 'wpds_resend_admin_' . $filename ) );
+
+				$log_data     = WPDS_Mailer::get_instance()->get_signature_log_by_filename( $filename );
+				$client_email = ! empty( $log_data['client_email'] ) ? $log_data['client_email'] : '';
 				?>
 				<tr>
 					<th scope="row" class="check-column wpds-checkbox-cell" style="width: 2.2em; padding: 12px 10px; text-align: center; vertical-align: middle;">
@@ -879,14 +926,20 @@ class WPDS_Admin_Settings {
 					<td class="size column-size" style="padding: 12px 10px; vertical-align: middle; text-align: center; color: #50575e;">
 						<?php echo esc_html( size_format( filesize( $file_path ) ) ); ?>
 					</td>
-					<td class="actions column-actions" style="padding: 12px 10px; vertical-align: middle; text-align: right;">
+					<td class="actions column-actions" style="padding: 12px 10px; vertical-align: middle; text-align: right; white-space: nowrap;">
 						<a href="<?php echo esc_url( $file_url ); ?>" class="button wpds-action-btn wpds-view-btn" target="_blank" title="<?php esc_attr_e( 'Visualizar PDF en nueva pestaña', 'wp-doc-signer' ); ?>">
 							<span class="dashicons dashicons-visibility"></span>
+						</a>
+						<a href="<?php echo esc_url( $resend_client_url ); ?>" class="button wpds-action-btn wpds-resend-client-btn" onclick="var email = prompt('<?php esc_attr_e( 'Confirmar o introducir correo electrónico del cliente para reenviar:', 'wp-doc-signer' ); ?>', '<?php echo esc_js( $client_email ); ?>'); if (email === null) return false; if (email.trim() !== '') { this.href += '&email=' + encodeURIComponent(email.trim()); return true; } else { alert('Debes especificar un email válido.'); return false; }" title="<?php esc_attr_e( 'Reenviar correo al cliente', 'wp-doc-signer' ); ?>">
+							<span class="dashicons dashicons-email-alt"></span>
+						</a>
+						<a href="<?php echo esc_url( $resend_admin_url ); ?>" class="button wpds-action-btn wpds-resend-admin-btn" onclick="return confirm('<?php esc_attr_e( '¿Deseas reenviar la copia de este documento por correo a la Administración?', 'wp-doc-signer' ); ?>');" title="<?php esc_attr_e( 'Reenviar correo a Administración', 'wp-doc-signer' ); ?>">
+							<span class="dashicons dashicons-businesswoman"></span>
 						</a>
 						<a href="<?php echo esc_url( $download_url ); ?>" class="button wpds-action-btn wpds-download-btn" title="<?php esc_attr_e( 'Descargar archivo PDF', 'wp-doc-signer' ); ?>">
 							<span class="dashicons dashicons-download"></span>
 						</a>
-						<a href="<?php echo esc_url( $del_url ); ?>" class="button wpds-action-btn wpds-delete-btn" onclick="return confirm('¿Está seguro de que desea eliminar permanentemente este archivo del servidor?');" title="<?php esc_attr_e( 'Eliminar permanentemente del servidor', 'wp-doc-signer' ); ?>">
+						<a href="<?php echo esc_url( $del_url ); ?>" class="button wpds-action-btn wpds-delete-btn" onclick="return confirm('<?php esc_attr_e( '¿Está seguro de que desea eliminar permanentemente este archivo del servidor?', 'wp-doc-signer' ); ?>');" title="<?php esc_attr_e( 'Eliminar permanentemente del servidor', 'wp-doc-signer' ); ?>">
 							<span class="dashicons dashicons-trash"></span>
 						</a>
 					</td>
@@ -941,6 +994,17 @@ class WPDS_Admin_Settings {
 		if ( isset( $_GET['bulk_deleted'] ) ) {
 			$count = intval( $_GET['bulk_deleted'] );
 			add_settings_error( 'wpds_messages', 'wpds_message', sprintf( _n( 'Se ha eliminado %s archivo del servidor.', 'Se han eliminado %s archivos del servidor.', $count, 'wp-doc-signer' ), $count ), 'updated' );
+		}
+
+		// Alertas de reenvío por correo
+		if ( isset( $_GET['resent_client'] ) ) {
+			add_settings_error( 'wpds_messages', 'wpds_message', sprintf( __( 'El documento PDF ha sido reenviado con éxito al cliente (%s).', 'wp-doc-signer' ), esc_html( $_GET['resent_client'] ) ), 'updated' );
+		}
+		if ( isset( $_GET['resent_admin'] ) ) {
+			add_settings_error( 'wpds_messages', 'wpds_message', sprintf( __( 'El documento PDF ha sido reenviado con éxito a la Administración (%s).', 'wp-doc-signer' ), esc_html( $_GET['resent_admin'] ) ), 'updated' );
+		}
+		if ( isset( $_GET['resend_error'] ) ) {
+			add_settings_error( 'wpds_messages', 'wpds_message', esc_html( $_GET['resend_error'] ), 'error' );
 		}
 
 		settings_errors( 'wpds_messages' );
@@ -1047,7 +1111,7 @@ class WPDS_Admin_Settings {
 								<th scope="col" id="title" class="manage-column column-title column-primary" style="padding: 12px 10px; font-weight: 700;"><?php esc_html_e( 'Nombre del Documento / Hash único', 'wp-doc-signer' ); ?></th>
 								<th scope="col" id="date" class="manage-column column-date" style="padding: 12px 10px; width: 220px; font-weight: 700;"><?php esc_html_e( 'Fecha y Hora de Firma', 'wp-doc-signer' ); ?></th>
 								<th scope="col" id="size" class="manage-column column-size" style="padding: 12px 10px; width: 130px; text-align: center; font-weight: 700;"><?php esc_html_e( 'Tamaño del PDF', 'wp-doc-signer' ); ?></th>
-								<th scope="col" id="actions" class="manage-column column-actions" style="padding: 12px 10px; width: 160px; text-align: right; font-weight: 700;"><?php esc_html_e( 'Acciones', 'wp-doc-signer' ); ?></th>
+								<th scope="col" id="actions" class="manage-column column-actions" style="padding: 12px 10px; width: 220px; text-align: right; font-weight: 700;"><?php esc_html_e( 'Acciones', 'wp-doc-signer' ); ?></th>
 							</tr>
 						</thead>
 						<tbody id="the-list">
@@ -1063,10 +1127,15 @@ class WPDS_Admin_Settings {
 								</tr>
 							<?php else : ?>
 								<?php foreach ( $files_sliced as $file_path ) : 
-									$filename = basename( $file_path );
-									$file_url      = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) );
-									$download_url  = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) . '&download=1' );
-									$del_url       = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&delete_file=' . urlencode( $filename ) . '&wpds_del_nonce=' . wp_create_nonce( 'wpds_delete_file_action_' . $filename ) );
+									$filename          = basename( $file_path );
+									$file_url          = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) );
+									$download_url      = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&view_pdf=' . urlencode( $filename ) . '&download=1' );
+									$del_url           = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&delete_file=' . urlencode( $filename ) . '&wpds_del_nonce=' . wp_create_nonce( 'wpds_delete_file_action_' . $filename ) );
+									$resend_client_url = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resend_client=' . urlencode( $filename ) . '&wpds_resend_nonce=' . wp_create_nonce( 'wpds_resend_client_' . $filename ) );
+									$resend_admin_url  = admin_url( 'edit.php?post_type=wp_documento&page=wpds-signed-docs&resend_admin=' . urlencode( $filename ) . '&wpds_resend_nonce=' . wp_create_nonce( 'wpds_resend_admin_' . $filename ) );
+
+									$log_data     = WPDS_Mailer::get_instance()->get_signature_log_by_filename( $filename );
+									$client_email = ! empty( $log_data['client_email'] ) ? $log_data['client_email'] : '';
 									?>
 									<tr>
 										<th scope="row" class="check-column wpds-checkbox-cell" style="width: 2.2em; padding: 12px 10px; text-align: center; vertical-align: middle;">
@@ -1086,17 +1155,25 @@ class WPDS_Admin_Settings {
 										<td class="size column-size" style="padding: 12px 10px; vertical-align: middle; text-align: center; color: #50575e;">
 											<?php echo esc_html( size_format( filesize( $file_path ) ) ); ?>
 										</td>
-										<td class="actions column-actions" style="padding: 12px 10px; vertical-align: middle; text-align: right;">
+										<td class="actions column-actions" style="padding: 12px 10px; vertical-align: middle; text-align: right; white-space: nowrap;">
 											<!-- Ver PDF inline -->
 											<a href="<?php echo esc_url( $file_url ); ?>" class="button wpds-action-btn wpds-view-btn" target="_blank" title="<?php esc_attr_e( 'Visualizar PDF en nueva pestaña', 'wp-doc-signer' ); ?>">
 												<span class="dashicons dashicons-visibility"></span>
+											</a>
+											<!-- Reenviar a cliente -->
+											<a href="<?php echo esc_url( $resend_client_url ); ?>" class="button wpds-action-btn wpds-resend-client-btn" onclick="var email = prompt('<?php esc_attr_e( 'Confirmar o introducir correo electrónico del cliente para reenviar:', 'wp-doc-signer' ); ?>', '<?php echo esc_js( $client_email ); ?>'); if (email === null) return false; if (email.trim() !== '') { this.href += '&email=' + encodeURIComponent(email.trim()); return true; } else { alert('Debes especificar un email válido.'); return false; }" title="<?php esc_attr_e( 'Reenviar correo al cliente', 'wp-doc-signer' ); ?>">
+												<span class="dashicons dashicons-email-alt"></span>
+											</a>
+											<!-- Reenviar a administración -->
+											<a href="<?php echo esc_url( $resend_admin_url ); ?>" class="button wpds-action-btn wpds-resend-admin-btn" onclick="return confirm('<?php esc_attr_e( '¿Deseas reenviar la copia de este documento por correo a la Administración?', 'wp-doc-signer' ); ?>');" title="<?php esc_attr_e( 'Reenviar correo a Administración', 'wp-doc-signer' ); ?>">
+												<span class="dashicons dashicons-businesswoman"></span>
 											</a>
 											<!-- Descargar PDF directo -->
 											<a href="<?php echo esc_url( $download_url ); ?>" class="button wpds-action-btn wpds-download-btn" title="<?php esc_attr_e( 'Descargar archivo PDF', 'wp-doc-signer' ); ?>">
 												<span class="dashicons dashicons-download"></span>
 											</a>
 											<!-- Eliminar PDF individual -->
-											<a href="<?php echo esc_url( $del_url ); ?>" class="button wpds-action-btn wpds-delete-btn" onclick="return confirm('¿Está seguro de que desea eliminar permanentemente este archivo del servidor?');" title="<?php esc_attr_e( 'Eliminar permanentemente del servidor', 'wp-doc-signer' ); ?>">
+											<a href="<?php echo esc_url( $del_url ); ?>" class="button wpds-action-btn wpds-delete-btn" onclick="return confirm('<?php esc_attr_e( '¿Está seguro de que desea eliminar permanentemente este archivo del servidor?', 'wp-doc-signer' ); ?>');" title="<?php esc_attr_e( 'Eliminar permanentemente del servidor', 'wp-doc-signer' ); ?>">
 												<span class="dashicons dashicons-trash"></span>
 											</a>
 										</td>
@@ -1219,7 +1296,7 @@ class WPDS_Admin_Settings {
 			$signatures = get_option( 'wpds_signatures_log', array() );
 
 			header( 'Content-Type: text/csv; charset=utf-8' );
-			header( 'Content-Disposition: attachment; filename="historial-firmas-' . date( 'Y-m-d' ) . '.csv"' );
+			header( 'Content-Disposition: attachment; filename="historial-firmas-' . date( 'd-m-Y' ) . '.csv"' );
 
 			$output = fopen( 'php://output', 'w' );
 			
@@ -1249,8 +1326,10 @@ class WPDS_Admin_Settings {
 					$consent_text = __( 'N/A', 'wp-doc-signer' );
 				}
 
+				$formatted_date = ! empty( $sig['date'] ) ? ( strtotime( $sig['date'] ) ? date( 'd/m/Y H:i:s', strtotime( $sig['date'] ) ) : $sig['date'] ) : '';
+
 				fputcsv( $output, array(
-					isset( $sig['date'] ) ? $sig['date'] : '',
+					$formatted_date,
 					isset( $sig['document_title'] ) ? $sig['document_title'] : '',
 					isset( $sig['client_name'] ) ? $sig['client_name'] : '',
 					isset( $sig['client_dni'] ) ? $sig['client_dni'] : '',

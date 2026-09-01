@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Document Signer Pro
  * Description: Permite a los clientes firmar documentos legales y de consentimiento directamente desde una pantalla tactil, generando un PDF y enviandolo por email.
- * Version:     1.2.3
+ * Version:     1.3.0
  * Author: 19webs
  * Author URI: https://19webs.com
  * Text Domain: wp-doc-signer
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Definir constantes del plugin.
-define( 'WPDS_VERSION', '1.2.3' );
+define( 'WPDS_VERSION', '1.3.0' );
 define( 'WPDS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'WPDS_URL', plugin_dir_url( __FILE__ ) );
 

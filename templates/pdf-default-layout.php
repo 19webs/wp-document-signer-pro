@@ -330,7 +330,10 @@
 					<div class="sig-client-block">
 						<div class="sig-client-title"><?php esc_html_e( 'PERSONA CLIENTE', 'wp-doc-signer' ); ?></div>
 						<div style="font-size: 8pt; color: #475569;">
-							<strong><?php esc_html_e( 'Fecha:', 'wp-doc-signer' ); ?></strong> <?php echo esc_html( $form_data['fecha'] ); ?>
+							<?php 
+							$pdf_fecha_display = ! empty( $form_data['fecha'] ) ? ( strtotime( $form_data['fecha'] ) ? date( 'd/m/Y', strtotime( $form_data['fecha'] ) ) : $form_data['fecha'] ) : date( 'd/m/Y' );
+							?>
+							<strong><?php esc_html_e( 'Fecha:', 'wp-doc-signer' ); ?></strong> <?php echo esc_html( $pdf_fecha_display ); ?>
 						</div>
 						<div style="margin-top: 10px;">
 							<div style="font-size: 7.5pt; color: #64748b; font-style: italic; margin-bottom: 2px;"><?php esc_html_e( 'Firma:', 'wp-doc-signer' ); ?></div>
@@ -475,7 +478,7 @@
 			<tr>
 				<td style="width: 50%; border-top: none;">
 					<div style="font-size: 8pt; color: #475569; margin-bottom: 5px;">
-						<strong><?php esc_html_e( 'Fecha:', 'wp-doc-signer' ); ?></strong> <?php echo esc_html( $form_data['fecha'] ); ?>
+						<strong><?php esc_html_e( 'Fecha:', 'wp-doc-signer' ); ?></strong> <?php echo esc_html( $pdf_fecha_display ); ?>
 					</div>
 					<div style="font-size: 8pt; color: #475569;">
 						<strong><?php esc_html_e( 'Firmante:', 'wp-doc-signer' ); ?></strong> <?php echo esc_html( $form_data['nombre'] ); ?>

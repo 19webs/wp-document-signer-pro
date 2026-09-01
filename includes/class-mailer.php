@@ -189,4 +189,175 @@ class WPDS_Mailer {
 
 		update_option( 'wpds_email_logs', $logs, false );
 	}
+
+	/**
+	 * Busca en la base de datos el registro de firma correspondiente a un nombre de archivo PDF.
+	 */
+	public function get_signature_log_by_filename( $filename ) {
+		$logs = get_option( 'wpds_signatures_log', array() );
+		if ( ! is_array( $logs ) ) {
+			return array();
+		}
+		$clean_target = basename( $filename );
+		foreach ( $logs as $log ) {
+			if ( isset( $log['filename'] ) && basename( $log['filename'] ) === $clean_target ) {
+				return $log;
+			}
+		}
+		return array();
+	}
+
+	/**
+	 * Reenvía la copia del documento PDF al cliente por correo electrónico.
+	 */
+	public function resend_client_email( $filename, $target_email = '' ) {
+		$upload_dir = wp_upload_dir();
+		$file_path  = $upload_dir['basedir'] . '/firmas-pdf/' . basename( $filename );
+
+		if ( ! file_exists( $file_path ) ) {
+			return new WP_Error( 'wpds_file_not_found', __( 'El archivo PDF no se encuentra en el servidor.', 'wp-doc-signer' ) );
+		}
+
+		$log_data     = $this->get_signature_log_by_filename( basename( $filename ) );
+		$client_email = ! empty( $target_email ) ? sanitize_email( $target_email ) : ( ! empty( $log_data['client_email'] ) ? $log_data['client_email'] : '' );
+
+		if ( ! is_email( $client_email ) ) {
+			return new WP_Error( 'wpds_invalid_email', __( 'Dirección de correo electrónico del cliente no válida.', 'wp-doc-signer' ) );
+		}
+
+		$document_title = ! empty( $log_data['document_title'] ) ? $log_data['document_title'] : __( 'Documento Firmado', 'wp-doc-signer' );
+		
+		$form_data = array(
+			'nombre'   => ! empty( $log_data['client_name'] ) ? $log_data['client_name'] : __( 'Cliente', 'wp-doc-signer' ),
+			'email'    => $client_email,
+			'dni'      => ! empty( $log_data['client_dni'] ) ? $log_data['client_dni'] : '',
+			'telefono' => ! empty( $log_data['client_phone'] ) ? $log_data['client_phone'] : '',
+			'fecha'    => ! empty( $log_data['date'] ) ? date( 'd/m/Y', strtotime( $log_data['date'] ) ) : date( 'd/m/Y', filemtime( $file_path ) ),
+		);
+
+		$settings     = get_option( 'wpds_settings', array() );
+		$sender_name  = ! empty( $settings['sender_name'] ) ? $settings['sender_name'] : get_bloginfo( 'name' );
+		$sender_email = ! empty( $settings['sender_email'] ) ? $settings['sender_email'] : get_bloginfo( 'admin_email' );
+
+		$headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: ' . esc_html( $sender_name ) . ' <' . sanitize_email( $sender_email ) . '>',
+		);
+
+		$attachments = array( $file_path );
+
+		$client_subj_raw = ! empty( $settings['client_subject'] ) ? $settings['client_subject'] : __( 'Tu copia de: {nombre_documento}', 'wp-doc-signer' );
+		$client_subject  = $this->parse_email_placeholders( $client_subj_raw, $document_title, $form_data );
+
+		$client_body_raw = ! empty( $settings['client_body'] ) ? $settings['client_body'] : '';
+		if ( empty( $client_body_raw ) ) {
+			$client_body_raw = "<p>Hola {nombre_cliente},</p>\n<p>Adjunto a este correo encontrarás la copia del documento firmado: <strong>{nombre_documento}</strong>.</p>";
+		}
+		$client_body = $this->parse_email_placeholders( $client_body_raw, $document_title, $form_data );
+
+		$sent = wp_mail( $client_email, $client_subject, $client_body, $headers, $attachments );
+
+		$this->log_email(
+			$document_title,
+			$client_email,
+			__( 'Reenvío Cliente', 'wp-doc-signer' ),
+			$sent ? __( 'Éxito', 'wp-doc-signer' ) : __( 'Fallido', 'wp-doc-signer' ),
+			$sent ? '' : __( 'Error en wp_mail() al reenviar al cliente.', 'wp-doc-signer' )
+		);
+
+		if ( ! $sent ) {
+			return new WP_Error( 'wpds_mail_failed', __( 'No se pudo reenviar el correo al cliente. Verifica la configuración SMTP.', 'wp-doc-signer' ) );
+		}
+
+		return $client_email;
+	}
+
+	/**
+	 * Reenvía la copia del documento PDF a la dirección de correo de administración.
+	 */
+	public function resend_admin_email( $filename, $target_email = '' ) {
+		$upload_dir = wp_upload_dir();
+		$file_path  = $upload_dir['basedir'] . '/firmas-pdf/' . basename( $filename );
+
+		if ( ! file_exists( $file_path ) ) {
+			return new WP_Error( 'wpds_file_not_found', __( 'El archivo PDF no se encuentra en el servidor.', 'wp-doc-signer' ) );
+		}
+
+		$log_data       = $this->get_signature_log_by_filename( basename( $filename ) );
+		$post_id        = ! empty( $log_data['document_id'] ) ? intval( $log_data['document_id'] ) : 0;
+		$document_title = ! empty( $log_data['document_title'] ) ? $log_data['document_title'] : __( 'Documento Firmado', 'wp-doc-signer' );
+
+		$form_data = array(
+			'nombre'   => ! empty( $log_data['client_name'] ) ? $log_data['client_name'] : __( 'Cliente', 'wp-doc-signer' ),
+			'email'    => ! empty( $log_data['client_email'] ) ? $log_data['client_email'] : '',
+			'dni'      => ! empty( $log_data['client_dni'] ) ? $log_data['client_dni'] : '',
+			'telefono' => ! empty( $log_data['client_phone'] ) ? $log_data['client_phone'] : '',
+			'fecha'    => ! empty( $log_data['date'] ) ? date( 'd/m/Y', strtotime( $log_data['date'] ) ) : date( 'd/m/Y', filemtime( $file_path ) ),
+		);
+
+		$settings     = get_option( 'wpds_settings', array() );
+		$sender_name  = ! empty( $settings['sender_name'] ) ? $settings['sender_name'] : get_bloginfo( 'name' );
+		$sender_email = ! empty( $settings['sender_email'] ) ? $settings['sender_email'] : get_bloginfo( 'admin_email' );
+
+		if ( ! empty( $target_email ) ) {
+			$admin_emails = $target_email;
+		} else {
+			$admin_email_override = $post_id ? get_post_meta( $post_id, '_wpds_email', true ) : '';
+			if ( ! empty( $admin_email_override ) ) {
+				$admin_emails = $admin_email_override;
+			} else {
+				$admin_emails = ! empty( $settings['admin_emails'] ) ? $settings['admin_emails'] : get_bloginfo( 'admin_email' );
+			}
+		}
+
+		$admin_subj_raw = ! empty( $settings['admin_subject'] ) ? $settings['admin_subject'] : __( 'Firmado: {nombre_documento} - {nombre_cliente}', 'wp-doc-signer' );
+		$admin_subject  = $this->parse_email_placeholders( $admin_subj_raw, $document_title, $form_data );
+
+		$admin_body  = '<h2>' . esc_html__( 'Reenvío de Documento Firmado', 'wp-doc-signer' ) . '</h2>';
+		$admin_body .= '<p>' . sprintf( esc_html__( 'Se adjunta la copia del documento "%s".', 'wp-doc-signer' ), esc_html( $document_title ) ) . '</p>';
+		$admin_body .= '<h3>' . esc_html__( 'Detalles del Firmante:', 'wp-doc-signer' ) . '</h3>';
+		$admin_body .= '<ul>';
+		$admin_body .= '<li><strong>' . esc_html__( 'Nombre Completo:', 'wp-doc-signer' ) . '</strong> ' . esc_html( $form_data['nombre'] ) . '</li>';
+		$admin_body .= '<li><strong>' . esc_html__( 'DNI / Identificación:', 'wp-doc-signer' ) . '</strong> ' . esc_html( $form_data['dni'] ) . '</li>';
+		$admin_body .= '<li><strong>' . esc_html__( 'Teléfono:', 'wp-doc-signer' ) . '</strong> ' . esc_html( $form_data['telefono'] ) . '</li>';
+		$admin_body .= '<li><strong>' . esc_html__( 'Correo Electrónico:', 'wp-doc-signer' ) . '</strong> ' . esc_html( $form_data['email'] ) . '</li>';
+		$admin_body .= '<li><strong>' . esc_html__( 'Fecha Firma:', 'wp-doc-signer' ) . '</strong> ' . esc_html( $form_data['fecha'] ) . '</li>';
+		$admin_body .= '</ul>';
+		$admin_body .= '<p>' . esc_html__( 'El archivo PDF con las firmas incrustadas se encuentra adjunto a este correo.', 'wp-doc-signer' ) . '</p>';
+
+		$admin_emails_array = array_map( 'trim', explode( ',', $admin_emails ) );
+		$sent_count         = 0;
+		$attachments        = array( $file_path );
+
+		$admin_headers = array(
+			'Content-Type: text/html; charset=UTF-8',
+			'From: ' . esc_html( $sender_name ) . ' <' . sanitize_email( $sender_email ) . '>',
+		);
+
+		if ( ! empty( $form_data['email'] ) ) {
+			$admin_headers[] = 'Reply-To: ' . esc_html( $form_data['nombre'] ) . ' <' . sanitize_email( $form_data['email'] ) . '>';
+		}
+
+		foreach ( $admin_emails_array as $single_admin_email ) {
+			if ( is_email( $single_admin_email ) ) {
+				$sent = wp_mail( $single_admin_email, $admin_subject, $admin_body, $admin_headers, $attachments );
+				$this->log_email(
+					$document_title,
+					$single_admin_email,
+					__( 'Reenvío Administración', 'wp-doc-signer' ),
+					$sent ? __( 'Éxito', 'wp-doc-signer' ) : __( 'Fallido', 'wp-doc-signer' ),
+					$sent ? '' : __( 'Error en wp_mail() al reenviar a administración.', 'wp-doc-signer' )
+				);
+				if ( $sent ) {
+					$sent_count++;
+				}
+			}
+		}
+
+		if ( 0 === $sent_count ) {
+			return new WP_Error( 'wpds_mail_admin_failed', __( 'No se pudo reenviar el correo a los destinatarios administrativos.', 'wp-doc-signer' ) );
+		}
+
+		return implode( ', ', $admin_emails_array );
+	}
 }

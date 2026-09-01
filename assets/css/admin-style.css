@@ -42,6 +42,32 @@
     color: #fff !important;
 }
 
+/* Botón de Reenviar a Cliente (email) */
+.wpds-resend-client-btn {
+    color: #0284c7 !important;
+    border-color: #38bdf8 !important;
+    background: #fff !important;
+}
+
+.wpds-resend-client-btn:hover {
+    background: #0284c7 !important;
+    color: #fff !important;
+    border-color: #0284c7 !important;
+}
+
+/* Botón de Reenviar a Administración (edificio/admin) */
+.wpds-resend-admin-btn {
+    color: #7c3aed !important;
+    border-color: #a78bfa !important;
+    background: #fff !important;
+}
+
+.wpds-resend-admin-btn:hover {
+    background: #7c3aed !important;
+    color: #fff !important;
+    border-color: #7c3aed !important;
+}
+
 /* Botón de Descargar PDF (flecha) */
 .wpds-download-btn {
     color: #475569 !important;

@@ -72,7 +72,8 @@ class WPDS_REST_API {
 			$telefono     = sanitize_text_field( $request->get_param( 'wpds_telefono' ) );
 			$email        = sanitize_email( $request->get_param( 'wpds_email' ) );
 			$dni          = sanitize_text_field( $request->get_param( 'wpds_dni' ) );
-			$fecha        = sanitize_text_field( $request->get_param( 'wpds_fecha' ) );
+			$fecha_raw    = sanitize_text_field( $request->get_param( 'wpds_fecha' ) );
+			$fecha        = ( ! empty( $fecha_raw ) && false !== strtotime( $fecha_raw ) ) ? date( 'd/m/Y', strtotime( $fecha_raw ) ) : date( 'd/m/Y' );
 			$firma_1      = $request->get_param( 'wpds_firma_1' ); // Base64 PNG
 			$firma_2      = $request->get_param( 'wpds_firma_2' ); // Base64 PNG
 			$consentimiento = $request->get_param( 'wpds_consentimiento_imagen' );
