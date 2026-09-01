@@ -6,7 +6,7 @@
     margin-bottom: 20px;
 }
 
-/* Botones de acción de la tabla de PDFs */
+/* Botones de acción de la tabla de PDFs (Estilo unificado azul #0284c7) */
 .wpds-action-btn {
     display: inline-flex !important;
     align-items: center !important;
@@ -20,6 +20,10 @@
     line-height: 1 !important;
     vertical-align: middle !important;
     box-sizing: border-box !important;
+    color: #0284c7 !important;
+    border: 1px solid #0284c7 !important;
+    background: #ffffff !important;
+    transition: all 0.2s ease-in-out !important;
 }
 
 .wpds-action-btn .dashicons {
@@ -28,69 +32,39 @@
     height: 16px !important;
     line-height: 16px !important;
     margin: 0 !important;
-}
-
-/* Botón de Ver PDF (ojo) */
-.wpds-view-btn {
-    color: #2271b1 !important;
-    border-color: #2271b1 !important;
-    background: #fff !important;
-}
-
-.wpds-view-btn:hover {
-    background: #2271b1 !important;
-    color: #fff !important;
-}
-
-/* Botón de Reenviar a Cliente (email) */
-.wpds-resend-client-btn {
     color: #0284c7 !important;
-    border-color: #38bdf8 !important;
-    background: #fff !important;
+    transition: color 0.2s ease-in-out !important;
 }
 
-.wpds-resend-client-btn:hover {
+.wpds-action-btn:hover {
     background: #0284c7 !important;
-    color: #fff !important;
     border-color: #0284c7 !important;
+    color: #ffffff !important;
 }
 
-/* Botón de Reenviar a Administración (edificio/admin) */
-.wpds-resend-admin-btn {
-    color: #7c3aed !important;
-    border-color: #a78bfa !important;
-    background: #fff !important;
+.wpds-action-btn:hover .dashicons {
+    color: #ffffff !important;
 }
 
-.wpds-resend-admin-btn:hover {
-    background: #7c3aed !important;
-    color: #fff !important;
-    border-color: #7c3aed !important;
-}
-
-/* Botón de Descargar PDF (flecha) */
-.wpds-download-btn {
-    color: #475569 !important;
-    border-color: #94a3b8 !important;
-    background: #fff !important;
-}
-
-.wpds-download-btn:hover {
-    background: #475569 !important;
-    color: #fff !important;
-    border-color: #475569 !important;
-}
-
-/* Botón de Eliminar PDF (papelera) */
+/* Botón de Eliminar PDF (papelera - Rojo destructivo) */
 .wpds-delete-btn {
     color: #d63638 !important;
-    border-color: #d63638 !important;
+    border: 1px solid #d63638 !important;
     background: #fff8f8 !important;
+}
+
+.wpds-delete-btn .dashicons {
+    color: #d63638 !important;
 }
 
 .wpds-delete-btn:hover {
     background: #d63638 !important;
-    color: #fff !important;
+    border-color: #d63638 !important;
+    color: #ffffff !important;
+}
+
+.wpds-delete-btn:hover .dashicons {
+    color: #ffffff !important;
 }
 
 /* Celdas de checkboxes alineadas */
